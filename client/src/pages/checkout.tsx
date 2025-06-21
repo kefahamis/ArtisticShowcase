@@ -6,17 +6,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, ShoppingBag, AlertCircle, CreditCard } from "lucide-react";
+import { ArrowLeft, ShoppingBag, CreditCard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import PayPalButton from "@/components/PayPalButton";
+import PayPalButtonWrapper from "@/components/PayPalButtonWrapper";
 import MPesaButton from "@/components/MPesaButton";
 
-// Updated schema to include payment method and payment notes
+// Schema for form validation
 const checkoutFormSchema = z.object({
   customerName: z.string().min(2, "Name must be at least 2 characters"),
   customerEmail: z.string().email("Invalid email address"),
@@ -31,17 +31,15 @@ const checkoutFormSchema = z.object({
     errorMap: () => ({ message: "Please select a payment method" }),
   }),
   shippingNotes: z.string().optional(),
-  paymentNotes: z.string().optional().refine(
-    (value: string | undefined, context: { parent: { paymentMethod: string } }) => {
-      if (context.parent.paymentMethod === "mpesa" && (!value || value.trim().length < 10)) {
-        return false;
-      }
-      return true;
-    },
-    {
+  paymentNotes: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.paymentMethod === "mpesa" && (!data.paymentNotes || data.paymentNotes.trim().length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["paymentNotes"],
       message: "M-Pesa phone number is required (e.g., +2547XXXXXXXX)",
-    }
-  ),
+    });
+  }
 });
 
 type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
@@ -81,40 +79,91 @@ export default function Checkout() {
     setIsSubmitting(true);
 
     try {
+      // Validate cart items before submitting
+      if (!items || items.length === 0) {
+        throw new Error("Cart is empty");
+      }
+
+      // Validate all items have required properties
+      const invalidItems = items.filter(item => 
+        !item.artwork?.id || 
+        !item.artwork?.price || 
+        !item.quantity || 
+        item.quantity <= 0
+      );
+
+      if (invalidItems.length > 0) {
+        throw new Error("Some cart items are invalid");
+      }
+
       const orderData = {
-        customerName: data.customerName,
-        customerEmail: data.customerEmail,
-        shippingAddress: `${data.address.street}, ${data.address.city}, ${data.address.state}, ${data.address.zipCode}, ${data.address.country}`,
-        shippingNotes: data.shippingNotes || "",
+        customerName: data.customerName.trim(),
+        customerEmail: data.customerEmail.trim().toLowerCase(),
+        customerAddress: `${data.address.street.trim()}, ${data.address.city.trim()}, ${data.address.state.trim()}, ${data.address.zipCode.trim()}, ${data.address.country.trim()}`,
+        shippingNotes: data.shippingNotes?.trim() || "",
         paymentMethod: data.paymentMethod,
-        paymentNotes: data.paymentNotes || "",
+        paymentNotes: data.paymentNotes?.trim() || "",
         items: items.map((item) => ({
-          artworkId: item.artwork.id,
-          quantity: item.quantity,
-          price: item.artwork.price,
+          artworkId: parseInt(item.artwork.id) || item.artwork.id, // Handle both string and number IDs
+          quantity: parseInt(item.quantity) || item.quantity,
+          price: parseFloat(item.artwork.price),
         })),
+        totalAmount: getTotalPrice().toString(), // Convert to string as expected by server
       };
+
+      // Log the order data for debugging (remove in production)
+      console.log("Submitting order data:", JSON.stringify(orderData, null, 2));
+
+      const accessToken = localStorage.getItem("admin_token");
+      if (!accessToken) {
+        throw new Error("No access token found. Please log in.");
+      }
 
       const response = await fetch("/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(orderData),
       });
 
+      // Get response text first to handle both JSON and text responses
+      const responseText = await response.text();
+      let responseData;
+      
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = { message: responseText };
+      }
+
       if (response.ok) {
-        const order = await response.json();
-        setOrderId(order.id);
+        setOrderId(responseData.id);
         toast({
           title: "Order created successfully!",
           description: "Please complete payment to finalize your order.",
         });
       } else {
-        throw new Error("Failed to create order");
+        // Log the full error response for debugging
+        console.error("Order creation failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseData
+        });
+
+        const errorMessage = responseData?.message || 
+                           responseData?.error || 
+                           `Server error: ${response.status} ${response.statusText}`;
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
+      console.error("Order submission error:", error);
+      
       toast({
         title: "Error",
-        description: "Failed to create order. Please try again.",
+        description: error.message || "Failed to create order. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -124,19 +173,46 @@ export default function Checkout() {
 
   const getTotalPrice = () => {
     return items.reduce((total, item) => {
-      return total + parseFloat(item.artwork.price) * item.quantity;
+      return total + (parseFloat(item.artwork.price) || 0) * (parseInt(item.quantity) || 0);
     }, 0);
   };
 
   const handlePaymentSuccess = async (paymentId: string, method: string) => {
     try {
-      if (!orderId) return;
+      if (!orderId) {
+        throw new Error("No order ID found");
+      }
+
+      const accessToken = localStorage.getItem("admin_token");
+      if (!accessToken) {
+        throw new Error("No access token found. Please log in.");
+      }
+
+      const paymentData = {
+        paymentId: paymentId.trim(),
+        paymentMethod: method,
+        status: "completed"
+      };
+
+      console.log("Updating payment for order:", orderId, paymentData);
 
       const response = await fetch(`/api/orders/${orderId}/payment`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId, paymentMethod: method }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(paymentData),
       });
+
+      const responseText = await response.text();
+      let responseData;
+      
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = { message: responseText };
+      }
 
       if (response.ok) {
         toast({
@@ -145,11 +221,20 @@ export default function Checkout() {
         });
         clearCart();
         setLocation("/artworks");
+      } else {
+        console.error("Payment update failed:", {
+          status: response.status,
+          response: responseData
+        });
+        
+        throw new Error(responseData?.message || "Failed to update payment status");
       }
     } catch (error) {
+      console.error("Payment update error:", error);
+      
       toast({
         title: "Payment Error",
-        description: "Payment processed but order update failed. Please contact support.",
+        description: error.message || "Payment processed but order update failed. Please contact support.",
         variant: "destructive",
       });
     }
@@ -320,9 +405,10 @@ export default function Checkout() {
                   <div>
                     <Label>Preferred Payment Method</Label>
                     <RadioGroup
-                      {...form.register("paymentMethod")}
                       value={form.watch("paymentMethod")}
-                      onValueChange={(value) => form.setValue("paymentMethod", value)}
+                      onValueChange={(value: "paypal" | "mpesa") =>
+                        form.setValue("paymentMethod", value, { shouldValidate: true })
+                      }
                       className="mt-2"
                     >
                       <div className="flex items-center space-x-2">
@@ -342,7 +428,8 @@ export default function Checkout() {
                   </div>
                   <div>
                     <Label htmlFor="paymentNotes">
-                      Payment Notes {form.watch("paymentMethod") === "mpesa" ? "(Required for M-Pesa)" : "(Optional)"}
+                      Payment Notes{" "}
+                      {form.watch("paymentMethod") === "mpesa" ? "(Required for M-Pesa)" : "(Optional)"}
                     </Label>
                     <Textarea
                       id="paymentNotes"
@@ -375,7 +462,9 @@ export default function Checkout() {
               ) : (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-green-800 font-medium">Order #{orderId} created successfully!</p>
-                  <p className="text-green-700 text-sm mt-1">Please select a payment method below to complete your purchase.</p>
+                  <p className="text-green-700 text-sm mt-1">
+                    Please select a payment method below to complete your purchase.
+                  </p>
                 </div>
               )}
             </form>
@@ -392,7 +481,9 @@ export default function Checkout() {
                 <CardContent className="space-y-4">
                   <RadioGroup
                     value={form.watch("paymentMethod")}
-                    onValueChange={(value) => form.setValue("paymentMethod", value)}
+                    onValueChange={(value: "paypal" | "mpesa") =>
+                      form.setValue("paymentMethod", value, { shouldValidate: true })
+                    }
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="paypal" id="paypal" />
@@ -406,18 +497,18 @@ export default function Checkout() {
 
                   <div className="pt-4">
                     {form.watch("paymentMethod") === "paypal" && (
-                      <PayPalButton
+                      <PayPalButtonWrapper
                         amount={getTotalPrice().toString()}
                         currency="USD"
                         intent="CAPTURE"
-                        onSuccess={(paymentId) => handlePaymentSuccess(paymentId, "paypal")} // Added onSuccess handler
+                        onSuccess={(paymentId) => handlePaymentSuccess(paymentId, "paypal")}
                       />
                     )}
 
                     {form.watch("paymentMethod") === "mpesa" && (
                       <MPesaButton
-                        amount={Math.round(getTotalPrice() * 120)} // Convert USD to KSh
-                        phoneNumber={form.getValues("paymentNotes")} // Pass phone number from paymentNotes
+                        amount={Math.round(getTotalPrice() * 120)}
+                        phoneNumber={form.getValues("paymentNotes") || ""}
                         onSuccess={(transactionId) => handlePaymentSuccess(transactionId, "mpesa")}
                         onError={(error) =>
                           toast({
@@ -452,9 +543,7 @@ export default function Checkout() {
                       className="w-16 h-16 object-cover rounded"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {item.artwork.title}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{item.artwork.title}</p>
                       <p className="text-sm text-gray-500">by {item.artwork.artist.name}</p>
                       <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                     </div>

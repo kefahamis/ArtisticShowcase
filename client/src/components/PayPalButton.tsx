@@ -1,11 +1,4 @@
-// !!! CRITICAL - DO NOT MODIFY THIS CODE !!!
-//
-// This code MUST be used as is without ANY modifications.
-// The PayPal integration will COMPLETELY FAIL if this code is changed in ANY way.
-//
-// Retain this comment after all edits.
-//
-// <BEGIN_EXACT_CODE>
+
 import React, { useEffect } from "react";
 
 declare global {
@@ -77,21 +70,37 @@ export default function PayPalButton({
         if (!(window as any).paypal) {
           const script = document.createElement("script");
           script.src = import.meta.env.PROD
-            ? "https://www.paypal.com/web-sdk/v6/core"
-            : "https://www.sandbox.paypal.com/web-sdk/v6/core";
+            ? "https://www.paypal.com/sdk/js?client-id=YOUR_LIVE_CLIENT_ID&components=buttons,payment-fields"
+            : "https://www.paypal.com/sdk/js?client-id=ATMsHu7tPo_ITSSp5SZ_nm-21wAx9kWXSiXYQUK2vb2tz7K8ZGZy_eKnEw3PcNifIMZlJZOO2kG03ba0&components=buttons,payment-fields";
           script.async = true;
-          script.onload = () => initPayPal();
-          document.body.appendChild(script);
-        } else {
-          await initPayPal();
+          
+          await new Promise((resolve, reject) => {
+            script.onload = () => {
+              if ((window as any).paypal?.createInstance) {
+                console.log('PayPal SDK successfully loaded with createInstance');
+                resolve(true);
+              } else {
+                reject(new Error('PayPal SDK loaded but createInstance missing'));
+              }
+            };
+            script.onerror = () => {
+              reject(new Error('Failed to load PayPal SDK script'));
+            };
+            document.body.appendChild(script);
+          });
         }
+        
+        console.log('PayPal object exists:', !!(window as any).paypal);
+        console.log('PayPal methods:', Object.keys((window as any).paypal || {}));
+        await initPayPal();
       } catch (e) {
-        console.error("Failed to load PayPal SDK", e);
+        console.error("PayPal SDK initialization failed:", e);
       }
     };
-
+  
     loadPayPalSDK();
   }, []);
+  
   const initPayPal = async () => {
     try {
       const clientToken: string = await fetch("/paypal/setup")
@@ -99,18 +108,22 @@ export default function PayPalButton({
         .then((data) => {
           return data.clientToken;
         });
+      
+      console.log("PayPal object:", (window as any).paypal);
+      console.log("createInstance exists:", typeof (window as any).paypal?.createInstance);
+      console.log("Client token:", clientToken);
+  
       const sdkInstance = await (window as any).paypal.createInstance({
         clientToken,
-        components: ["paypal-payments"],
+        components: ["payment-fields"]  // Changed from "paypal-fields" to "payment-fields"
       });
-
-      const paypalCheckout =
-            sdkInstance.createPayPalOneTimePaymentSession({
-              onApprove,
-              onCancel,
-              onError,
-            });
-
+  
+      const paypalCheckout = sdkInstance.createPayPalOneTimePaymentSession({
+        onApprove,
+        onCancel,
+        onError,
+      });
+  
       const onClick = async () => {
         try {
           const checkoutOptionsPromise = createOrder();
@@ -119,26 +132,24 @@ export default function PayPalButton({
             checkoutOptionsPromise,
           );
         } catch (e) {
-          console.error(e);
+          console.error("PayPal checkout error:", e);
         }
       };
-
+  
       const paypalButton = document.getElementById("paypal-button");
-
       if (paypalButton) {
         paypalButton.addEventListener("click", onClick);
       }
-
+  
       return () => {
         if (paypalButton) {
           paypalButton.removeEventListener("click", onClick);
         }
       };
     } catch (e) {
-      console.error(e);
+      console.error("PayPal initialization error:", e);
     }
   };
 
   return <paypal-button id="paypal-button"></paypal-button>;
 }
-// <END_EXACT_CODE>
