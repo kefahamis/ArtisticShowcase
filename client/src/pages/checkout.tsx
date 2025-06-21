@@ -16,6 +16,7 @@ import { z } from "zod";
 import PayPalButton from "@/components/PayPalButton";
 import MPesaButton from "@/components/MPesaButton";
 
+// Updated schema to include payment method and payment notes
 const checkoutFormSchema = z.object({
   customerName: z.string().min(2, "Name must be at least 2 characters"),
   customerEmail: z.string().email("Invalid email address"),
@@ -26,7 +27,21 @@ const checkoutFormSchema = z.object({
     zipCode: z.string().min(5, "ZIP code is required"),
     country: z.string().min(2, "Country is required"),
   }),
+  paymentMethod: z.enum(["paypal", "mpesa"], {
+    errorMap: () => ({ message: "Please select a payment method" }),
+  }),
   shippingNotes: z.string().optional(),
+  paymentNotes: z.string().optional().refine(
+    (value: string | undefined, context: { parent: { paymentMethod: string } }) => {
+      if (context.parent.paymentMethod === "mpesa" && (!value || value.trim().length < 10)) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "M-Pesa phone number is required (e.g., +2547XXXXXXXX)",
+    }
+  ),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
@@ -36,7 +51,6 @@ export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("paypal");
   const [orderId, setOrderId] = useState<number | null>(null);
 
   const form = useForm<CheckoutFormData>({
@@ -51,7 +65,9 @@ export default function Checkout() {
         zipCode: "",
         country: "United States",
       },
+      paymentMethod: "paypal",
       shippingNotes: "",
+      paymentNotes: "",
     },
   });
 
@@ -63,24 +79,26 @@ export default function Checkout() {
 
   const handleSubmit = async (data: CheckoutFormData) => {
     setIsSubmitting(true);
-    
+
     try {
       const orderData = {
         customerName: data.customerName,
         customerEmail: data.customerEmail,
         shippingAddress: `${data.address.street}, ${data.address.city}, ${data.address.state}, ${data.address.zipCode}, ${data.address.country}`,
         shippingNotes: data.shippingNotes || "",
-        items: items.map(item => ({
+        paymentMethod: data.paymentMethod,
+        paymentNotes: data.paymentNotes || "",
+        items: items.map((item) => ({
           artworkId: item.artwork.id,
           quantity: item.quantity,
-          price: item.artwork.price
-        }))
+          price: item.artwork.price,
+        })),
       };
 
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
       });
 
       if (response.ok) {
@@ -91,7 +109,7 @@ export default function Checkout() {
           description: "Please complete payment to finalize your order.",
         });
       } else {
-        throw new Error('Failed to create order');
+        throw new Error("Failed to create order");
       }
     } catch (error) {
       toast({
@@ -106,7 +124,7 @@ export default function Checkout() {
 
   const getTotalPrice = () => {
     return items.reduce((total, item) => {
-      return total + (parseFloat(item.artwork.price) * item.quantity);
+      return total + parseFloat(item.artwork.price) * item.quantity;
     }, 0);
   };
 
@@ -115,9 +133,9 @@ export default function Checkout() {
       if (!orderId) return;
 
       const response = await fetch(`/api/orders/${orderId}/payment`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId, paymentMethod: method })
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId, paymentMethod: method }),
       });
 
       if (response.ok) {
@@ -289,7 +307,7 @@ export default function Checkout() {
                 <CardHeader>
                   <CardTitle>Special Instructions</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="shippingNotes">Delivery Notes (Optional)</Label>
                     <Textarea
@@ -298,6 +316,49 @@ export default function Checkout() {
                       className="mt-1"
                       placeholder="Any special delivery instructions..."
                     />
+                  </div>
+                  <div>
+                    <Label>Preferred Payment Method</Label>
+                    <RadioGroup
+                      {...form.register("paymentMethod")}
+                      value={form.watch("paymentMethod")}
+                      onValueChange={(value) => form.setValue("paymentMethod", value)}
+                      className="mt-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="paypal" id="paypal-option" />
+                        <Label htmlFor="paypal-option">PayPal</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="mpesa" id="mpesa-option" />
+                        <Label htmlFor="mpesa-option">M-Pesa</Label>
+                      </div>
+                    </RadioGroup>
+                    {form.formState.errors.paymentMethod && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.paymentMethod.message}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="paymentNotes">
+                      Payment Notes {form.watch("paymentMethod") === "mpesa" ? "(Required for M-Pesa)" : "(Optional)"}
+                    </Label>
+                    <Textarea
+                      id="paymentNotes"
+                      {...form.register("paymentNotes")}
+                      className="mt-1"
+                      placeholder={
+                        form.watch("paymentMethod") === "mpesa"
+                          ? "Enter your M-Pesa phone number (e.g., +2547XXXXXXXX)"
+                          : "Any special payment instructions..."
+                      }
+                    />
+                    {form.formState.errors.paymentNotes && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.paymentNotes.message}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -329,7 +390,10 @@ export default function Checkout() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <RadioGroup
+                    value={form.watch("paymentMethod")}
+                    onValueChange={(value) => form.setValue("paymentMethod", value)}
+                  >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="paypal" id="paypal" />
                       <Label htmlFor="paypal">PayPal</Label>
@@ -341,23 +405,27 @@ export default function Checkout() {
                   </RadioGroup>
 
                   <div className="pt-4">
-                    {paymentMethod === "paypal" && (
+                    {form.watch("paymentMethod") === "paypal" && (
                       <PayPalButton
                         amount={getTotalPrice().toString()}
                         currency="USD"
                         intent="CAPTURE"
+                        onSuccess={(paymentId) => handlePaymentSuccess(paymentId, "paypal")} // Added onSuccess handler
                       />
                     )}
-                    
-                    {paymentMethod === "mpesa" && (
+
+                    {form.watch("paymentMethod") === "mpesa" && (
                       <MPesaButton
                         amount={Math.round(getTotalPrice() * 120)} // Convert USD to KSh
+                        phoneNumber={form.getValues("paymentNotes")} // Pass phone number from paymentNotes
                         onSuccess={(transactionId) => handlePaymentSuccess(transactionId, "mpesa")}
-                        onError={(error) => toast({
-                          title: "Payment Error",
-                          description: error,
-                          variant: "destructive"
-                        })}
+                        onError={(error) =>
+                          toast({
+                            title: "Payment Error",
+                            description: error,
+                            variant: "destructive",
+                          })
+                        }
                       />
                     )}
                   </div>
@@ -387,12 +455,8 @@ export default function Checkout() {
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {item.artwork.title}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        by {item.artwork.artist.name}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Quantity: {item.quantity}
-                      </p>
+                      <p className="text-sm text-gray-500">by {item.artwork.artist.name}</p>
+                      <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
                       ${(parseFloat(item.artwork.price) * item.quantity).toLocaleString()}

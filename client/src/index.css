@@ -226,3 +226,20 @@
   content: '';
   @apply inline-block w-4 h-4 ml-2 border-2 border-current border-r-transparent rounded-full animate-spin;
 }
+[data-radix-select-content] {
+  z-index: 10000 !important;
+  position: fixed !important;
+}
+
+[data-radix-popper-content-wrapper] {
+  z-index: 10000 !important;
+}
+
+/* Ensure dialog has lower z-index */
+[data-radix-dialog-overlay] {
+  z-index: 9999 !important;
+}
+
+[data-radix-dialog-content] {
+  z-index: 9999 !important;
+}

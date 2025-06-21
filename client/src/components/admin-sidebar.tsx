@@ -26,13 +26,8 @@ import {
   Settings,
   LogOut,
   Palette,
-  FileImage,
-  Mail,
-  Calendar,
-  TrendingUp,
-  CreditCard,
-  Bell,
   FileText,
+  TrendingUp,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -41,7 +36,7 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ children }: AdminSidebarProps) {
   const [location] = useLocation();
-  
+
   const handleLogout = () => {
     localStorage.removeItem("admin_token");
     window.location.href = "/";
@@ -102,71 +97,73 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
       <div className="flex h-screen w-full flex-col">
         <AdminHeader />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar className="border-r">
-          <SidebarHeader className="border-b px-6 py-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Package className="h-4 w-4" />
+          <Sidebar className="bg-blue-900 border-r border-blue-800">
+            <SidebarHeader className="border-b border-blue-800 px-6 py-4 bg-blue-900">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-700 text-white">
+                  <Package className="h-4 w-4" />
+                </div>
+                <span className="font-semibold text-white">Navigation</span>
               </div>
-              <span className="font-semibold">Navigation</span>
-            </div>
-          </SidebarHeader>
-          
-          <SidebarContent className="px-2">
-            {navigation.map((section) => (
-              <SidebarGroup key={section.title}>
-                <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  {section.title}
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {section.items.map((item) => (
-                      <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={item.isActive}
-                          className="w-full justify-start"
-                        >
-                          <Link href={item.href} className="flex items-center gap-3 px-3 py-2">
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
-          </SidebarContent>
-          
-          <SidebarFooter className="border-t px-4 py-4">
-            <div className="flex items-center gap-3 p-2">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
-                A
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin User</p>
-                <p className="text-xs text-gray-500">admin@gallery.com</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-gray-500 hover:text-red-600"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </SidebarFooter>
-        </Sidebar>
+            </SidebarHeader>
 
-        <div className="flex-1 flex flex-col">
-          {children}
+            <SidebarContent className="px-2">
+              {navigation.map((section) => (
+                <SidebarGroup key={section.title}>
+                  <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                    {section.title}
+                  </SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {section.items.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={item.isActive}
+                            className={`w-full justify-start text-gray-200 hover:bg-blue-800 hover:text-white ${
+                              item.isActive ? "bg-blue-800 text-white" : ""
+                            }`}
+                          >
+                            <Link href={item.href} className="flex items-center gap-3 px-3 py-2">
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
+            </SidebarContent>
+
+            <SidebarFooter className="border-t border-blue-800 px-4 py-4 bg-blue-900">
+              <div className="flex items-center gap-3 p-2">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
+                  A
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">Admin User</p>
+                  <p className="text-xs text-gray-300">admin@gallery.com</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-gray-300 hover:text-red-400 hover:bg-blue-800"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </SidebarFooter>
+          </Sidebar>
+
+          <div className="flex-1 flex flex-col">
+            {children}
+          </div>
         </div>
+        <AdminFooter />
       </div>
-      <AdminFooter />
-    </div>
     </SidebarProvider>
   );
 }

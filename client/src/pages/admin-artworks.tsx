@@ -250,7 +250,10 @@ export default function AdminArtworks() {
                   Add Artwork
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+              <DialogContent 
+                className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
                 <DialogHeader>
                   <DialogTitle>
                     {editingArtwork ? "Edit Artwork" : "Add New Artwork"}
@@ -285,7 +288,11 @@ export default function AdminArtworks() {
                                   <SelectValue placeholder="Select an artist" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent>
+                              <SelectContent 
+                                className="z-[9999]"
+                                side="bottom"
+                                sideOffset={4}
+                              >
                                 {artists && artists.length > 0 ? artists.map((artist: Artist) => (
                                   <SelectItem key={artist.id} value={artist.id.toString()}>
                                     {artist.name}
@@ -356,7 +363,11 @@ export default function AdminArtworks() {
                                   <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent>
+                              <SelectContent 
+                                className="z-[9999]"
+                                side="bottom"
+                                sideOffset={4}
+                              >
                                 <SelectItem value="painting">Painting</SelectItem>
                                 <SelectItem value="sculpture">Sculpture</SelectItem>
                                 <SelectItem value="photography">Photography</SelectItem>
@@ -386,7 +397,11 @@ export default function AdminArtworks() {
                                   <SelectValue placeholder="Select availability" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent>
+                              <SelectContent 
+                                className="z-[9999]"
+                                side="bottom"
+                                sideOffset={4}
+                              >
                                 <SelectItem value="available">Available</SelectItem>
                                 <SelectItem value="sold">Sold</SelectItem>
                                 <SelectItem value="reserved">Reserved</SelectItem>

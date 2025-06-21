@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -55,6 +55,7 @@ export default function AdminBlog() {
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const dialogContentRef = useRef<HTMLDivElement>(null);
 
   // Check authentication
   useEffect(() => {
@@ -64,11 +65,19 @@ export default function AdminBlog() {
     }
   }, [setLocation]);
 
+  // Focus first input when dialog opens
+  useEffect(() => {
+    if (isDialogOpen && dialogContentRef.current) {
+      const firstInput = dialogContentRef.current.querySelector('input[name="title"]') as HTMLInputElement;
+      firstInput?.focus();
+    }
+  }, [isDialogOpen]);
+
   // Helper to make authenticated requests
   const authenticatedRequest = async (method: string, url: string, data?: any) => {
     const token = localStorage.getItem("admin_token");
     if (!token) {
-      throw new Error("No authentication token");
+      throw new Error("No authentication token found");
     }
 
     const response = await fetch(url, {
@@ -103,7 +112,7 @@ export default function AdminBlog() {
         console.error("Failed to fetch blog posts:", error);
         return [];
       }
-    }
+    },
   });
 
   // Blog post form
@@ -123,14 +132,42 @@ export default function AdminBlog() {
     mutationFn: async (data: BlogPostForm) => {
       return authenticatedRequest("POST", "/api/blog", data);
     },
+    onMutate: async (newPost) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/blog"] });
+
+      // Snapshot the previous value
+      const previousPosts = queryClient.getQueryData<BlogPost[]>(["/api/blog"]) || [];
+
+      // Optimistically update the UI
+      const optimisticPost: BlogPost = {
+        id: Date.now(), // Temporary ID
+        ...newPost,
+        createdAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData(["/api/blog"], [optimisticPost, ...previousPosts]);
+
+      // Return context for rollback
+      return { previousPosts };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/blog"] });
       blogForm.reset();
       setIsDialogOpen(false);
       toast({ title: "Success", description: "Blog post created successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    onError: (error: any, _variables, context) => {
+      // Rollback on error
+      queryClient.setQueryData(["/api/blog"], context?.previousPosts);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create blog post",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      // Ensure the query is invalidated to fetch the latest data
+      queryClient.invalidateQueries({ queryKey: ["/api/blog"] });
     },
   });
 
@@ -146,7 +183,11 @@ export default function AdminBlog() {
       toast({ title: "Success", description: "Blog post updated successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update blog post",
+        variant: "destructive",
+      });
     },
   });
 
@@ -159,7 +200,11 @@ export default function AdminBlog() {
       toast({ title: "Success", description: "Blog post deleted successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete blog post",
+        variant: "destructive",
+      });
     },
   });
 
@@ -191,11 +236,11 @@ export default function AdminBlog() {
 
   const formatDate = (dateValue: string | Date | null) => {
     if (!dateValue) return "N/A";
-    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue;
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -222,7 +267,6 @@ export default function AdminBlog() {
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1 flex items-center justify-between">
             <h1 className="text-xl font-semibold">Blog & News</h1>
-            
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button onClick={handleNewPost} className="flex items-center gap-2">
@@ -230,9 +274,14 @@ export default function AdminBlog() {
                   Add Blog Post
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+              <DialogContent
+                className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto z-[1000]"
+                role="dialog"
+                aria-labelledby="dialog-title"
+                ref={dialogContentRef}
+              >
                 <DialogHeader>
-                  <DialogTitle>
+                  <DialogTitle id="dialog-title">
                     {editingPost ? "Edit Blog Post" : "Add New Blog Post"}
                   </DialogTitle>
                 </DialogHeader>
@@ -260,10 +309,10 @@ export default function AdminBlog() {
                           <FormItem>
                             <FormLabel>Excerpt</FormLabel>
                             <FormControl>
-                              <Textarea 
+                              <Textarea
                                 placeholder="Brief description of the post..."
                                 className="h-20"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -276,10 +325,13 @@ export default function AdminBlog() {
                         name="imageUrl"
                         render={({ field }) => (
                           <FormItem>
-                            <ImageUpload
-                              onImageSelect={field.onChange}
-                              currentImage={field.value}
-                            />
+                            <FormLabel>Featured Image</FormLabel>
+                            <FormControl>
+                              <ImageUpload
+                                onImageSelect={field.onChange}
+                                currentImage={field.value}
+                              />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -292,10 +344,10 @@ export default function AdminBlog() {
                           <FormItem>
                             <FormLabel>Content</FormLabel>
                             <FormControl>
-                              <Textarea 
+                              <Textarea
                                 placeholder="Write your blog post content here..."
                                 className="min-h-[200px]"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -326,15 +378,15 @@ export default function AdminBlog() {
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         onClick={() => setIsDialogOpen(false)}
                       >
                         Cancel
                       </Button>
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         disabled={createPostMutation.isPending || updatePostMutation.isPending}
                       >
                         {editingPost ? "Update Post" : "Create Post"}
@@ -378,8 +430,8 @@ export default function AdminBlog() {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             {post.imageUrl && (
-                              <img 
-                                src={post.imageUrl} 
+                              <img
+                                src={post.imageUrl}
                                 alt={post.title}
                                 className="w-10 h-10 rounded object-cover"
                               />
@@ -390,12 +442,12 @@ export default function AdminBlog() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant={post.published ? 'default' : 'secondary'}
+                          <Badge
+                            variant={post.published ? "default" : "secondary"}
                             className="flex items-center gap-1 w-fit"
                           >
                             {post.published ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                            {post.published ? 'Published' : 'Draft'}
+                            {post.published ? "Published" : "Draft"}
                           </Badge>
                         </TableCell>
                         <TableCell>{formatDate(post.createdAt)}</TableCell>
@@ -442,12 +494,11 @@ export default function AdminBlog() {
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
-                        <PaginationPrevious 
+                        <PaginationPrevious
                           onClick={previousPage}
                           className={hasPrevious ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
                         />
                       </PaginationItem>
-                      
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                         <PaginationItem key={page}>
                           <PaginationLink
@@ -459,9 +510,8 @@ export default function AdminBlog() {
                           </PaginationLink>
                         </PaginationItem>
                       ))}
-                      
                       <PaginationItem>
-                        <PaginationNext 
+                        <PaginationNext
                           onClick={nextPage}
                           className={hasNext ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
                         />

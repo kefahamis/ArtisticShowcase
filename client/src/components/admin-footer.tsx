@@ -25,9 +25,7 @@ export default function AdminFooter() {
           <button className="text-gray-600 hover:text-gray-900 transition-colors">
             Support
           </button>
-          <button className="text-gray-600 hover:text-gray-900 transition-colors">
-            Documentation
-          </button>
+          
         </div>
       </div>
     </footer>
