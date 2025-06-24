@@ -48,7 +48,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: error.message });
     }
   });
-
   // User registration route
   app.post("/api/users/register", async (req, res) => {
     try {
@@ -68,7 +67,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: error.message });
     }
   });
-
   // Newsletter subscription
   app.post("/api/newsletter/subscribe", async (req, res) => {
     try {
@@ -459,84 +457,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orders = await storage.getAllOrders();
       res.json(orders);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/orders/:id", async (req, res) => {
-    try {
-      const order = await storage.getOrder(parseInt(req.params.id));
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-      res.json(order);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Update order status
-  app.patch("/api/orders/:id/status", authenticateAdmin, async (req, res) => {
-    try {
-      const { status } = req.body;
-      const orderId = parseInt(req.params.id);
-      
-      if (!status) {
-        return res.status(400).json({ message: "Status is required" });
-      }
-
-      const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({ message: "Invalid status value" });
-      }
-
-      const updatedOrder = await storage.updateOrderStatus(orderId, status);
-      res.json(updatedOrder);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Send order receipt via email
-  app.post("/api/orders/:id/send-receipt", async (req, res) => {
-    try {
-      const orderId = parseInt(req.params.id);
-      const order = await storage.getOrder(orderId);
-      
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      // Prepare order data for email
-      const orderData = {
-        orderId: order.id,
-        customerName: order.customerName || 'Valued Customer',
-        customerEmail: order.customerEmail || req.body.email,
-        orderTotal: order.total,
-        items: order.items.map(item => ({
-          title: item.artwork.title,
-          price: item.artwork.price,
-          quantity: item.quantity
-        })),
-        orderDate: new Date(order.createdAt).toLocaleDateString(),
-        paymentMethod: order.paymentMethod || 'Online Payment'
-      };
-
-      const emailSent = await sendOrderReceipt(orderData);
-      
-      if (emailSent) {
-        res.json({ 
-          message: "Receipt sent successfully",
-          orderId: orderId,
-          email: orderData.customerEmail
-        });
-      } else {
-        res.status(500).json({ 
-          message: "Failed to send receipt email",
-          orderId: orderId
-        });
-      }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, ShoppingBag, CreditCard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
@@ -14,7 +13,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import PayPalButtonWrapper from "@/components/PayPalButtonWrapper";
-import MPesaButton from "@/components/MPesaButton";
 
 // Schema for form validation
 const checkoutFormSchema = z.object({
@@ -27,19 +25,10 @@ const checkoutFormSchema = z.object({
     zipCode: z.string().min(5, "ZIP code is required"),
     country: z.string().min(2, "Country is required"),
   }),
-  paymentMethod: z.enum(["paypal", "mpesa"], {
+  paymentMethod: z.enum(["paypal"], {
     errorMap: () => ({ message: "Please select a payment method" }),
   }),
   shippingNotes: z.string().optional(),
-  paymentNotes: z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.paymentMethod === "mpesa" && (!data.paymentNotes || data.paymentNotes.trim().length < 10)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["paymentNotes"],
-      message: "M-Pesa phone number is required (e.g., +2547XXXXXXXX)",
-    });
-  }
 });
 
 type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
@@ -65,7 +54,6 @@ export default function Checkout() {
       },
       paymentMethod: "paypal",
       shippingNotes: "",
-      paymentNotes: "",
     },
   });
 
@@ -102,17 +90,13 @@ export default function Checkout() {
         customerAddress: `${data.address.street.trim()}, ${data.address.city.trim()}, ${data.address.state.trim()}, ${data.address.zipCode.trim()}, ${data.address.country.trim()}`,
         shippingNotes: data.shippingNotes?.trim() || "",
         paymentMethod: data.paymentMethod,
-        paymentNotes: data.paymentNotes?.trim() || "",
         items: items.map((item) => ({
-          artworkId: parseInt(item.artwork.id) || item.artwork.id, // Handle both string and number IDs
+          artworkId: parseInt(item.artwork.id) || item.artwork.id,
           quantity: parseInt(item.quantity) || item.quantity,
           price: parseFloat(item.artwork.price),
         })),
-        totalAmount: getTotalPrice().toString(), // Convert to string as expected by server
+        totalAmount: getTotalPrice().toString(),
       };
-
-      // Log the order data for debugging (remove in production)
-      console.log("Submitting order data:", JSON.stringify(orderData, null, 2));
 
       const accessToken = localStorage.getItem("admin_token");
       if (!accessToken) {
@@ -128,7 +112,6 @@ export default function Checkout() {
         body: JSON.stringify(orderData),
       });
 
-      // Get response text first to handle both JSON and text responses
       const responseText = await response.text();
       let responseData;
       
@@ -145,13 +128,6 @@ export default function Checkout() {
           description: "Please complete payment to finalize your order.",
         });
       } else {
-        // Log the full error response for debugging
-        console.error("Order creation failed:", {
-          status: response.status,
-          statusText: response.statusText,
-          response: responseData
-        });
-
         const errorMessage = responseData?.message || 
                            responseData?.error || 
                            `Server error: ${response.status} ${response.statusText}`;
@@ -194,8 +170,6 @@ export default function Checkout() {
         status: "completed"
       };
 
-      console.log("Updating payment for order:", orderId, paymentData);
-
       const response = await fetch(`/api/orders/${orderId}/payment`, {
         method: "PATCH",
         headers: {
@@ -222,11 +196,6 @@ export default function Checkout() {
         clearCart();
         setLocation("/artworks");
       } else {
-        console.error("Payment update failed:", {
-          status: response.status,
-          response: responseData
-        });
-        
         throw new Error(responseData?.message || "Failed to update payment status");
       }
     } catch (error) {
@@ -261,7 +230,7 @@ export default function Checkout() {
                 <div>
                   <h3 className="font-medium text-blue-800">Secure Payment Processing</h3>
                   <p className="text-sm text-blue-700 mt-1">
-                    Complete your order details below, then choose your preferred payment method: PayPal or M-Pesa.
+                    Complete your order details below, then proceed to PayPal to complete your payment.
                   </p>
                 </div>
               </div>
@@ -402,51 +371,6 @@ export default function Checkout() {
                       placeholder="Any special delivery instructions..."
                     />
                   </div>
-                  <div>
-                    <Label>Preferred Payment Method</Label>
-                    <RadioGroup
-                      value={form.watch("paymentMethod")}
-                      onValueChange={(value: "paypal" | "mpesa") =>
-                        form.setValue("paymentMethod", value, { shouldValidate: true })
-                      }
-                      className="mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="paypal" id="paypal-option" />
-                        <Label htmlFor="paypal-option">PayPal</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="mpesa" id="mpesa-option" />
-                        <Label htmlFor="mpesa-option">M-Pesa</Label>
-                      </div>
-                    </RadioGroup>
-                    {form.formState.errors.paymentMethod && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {form.formState.errors.paymentMethod.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentNotes">
-                      Payment Notes{" "}
-                      {form.watch("paymentMethod") === "mpesa" ? "(Required for M-Pesa)" : "(Optional)"}
-                    </Label>
-                    <Textarea
-                      id="paymentNotes"
-                      {...form.register("paymentNotes")}
-                      className="mt-1"
-                      placeholder={
-                        form.watch("paymentMethod") === "mpesa"
-                          ? "Enter your M-Pesa phone number (e.g., +2547XXXXXXXX)"
-                          : "Any special payment instructions..."
-                      }
-                    />
-                    {form.formState.errors.paymentNotes && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {form.formState.errors.paymentNotes.message}
-                      </p>
-                    )}
-                  </div>
                 </CardContent>
               </Card>
 
@@ -463,7 +387,7 @@ export default function Checkout() {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-green-800 font-medium">Order #{orderId} created successfully!</p>
                   <p className="text-green-700 text-sm mt-1">
-                    Please select a payment method below to complete your purchase.
+                    Please complete your payment to finalize your purchase.
                   </p>
                 </div>
               )}
@@ -479,46 +403,13 @@ export default function Checkout() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <RadioGroup
-                    value={form.watch("paymentMethod")}
-                    onValueChange={(value: "paypal" | "mpesa") =>
-                      form.setValue("paymentMethod", value, { shouldValidate: true })
-                    }
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="paypal" id="paypal" />
-                      <Label htmlFor="paypal">PayPal</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="mpesa" id="mpesa" />
-                      <Label htmlFor="mpesa">M-Pesa</Label>
-                    </div>
-                  </RadioGroup>
-
                   <div className="pt-4">
-                    {form.watch("paymentMethod") === "paypal" && (
-                      <PayPalButtonWrapper
-                        amount={getTotalPrice().toString()}
-                        currency="USD"
-                        intent="CAPTURE"
-                        onSuccess={(paymentId) => handlePaymentSuccess(paymentId, "paypal")}
-                      />
-                    )}
-
-                    {form.watch("paymentMethod") === "mpesa" && (
-                      <MPesaButton
-                        amount={Math.round(getTotalPrice() * 120)}
-                        phoneNumber={form.getValues("paymentNotes") || ""}
-                        onSuccess={(transactionId) => handlePaymentSuccess(transactionId, "mpesa")}
-                        onError={(error) =>
-                          toast({
-                            title: "Payment Error",
-                            description: error,
-                            variant: "destructive",
-                          })
-                        }
-                      />
-                    )}
+                    <PayPalButtonWrapper
+                      amount={getTotalPrice().toString()}
+                      currency="USD"
+                      intent="CAPTURE"
+                      onSuccess={(paymentId) => handlePaymentSuccess(paymentId, "paypal")}
+                    />
                   </div>
                 </CardContent>
               </Card>

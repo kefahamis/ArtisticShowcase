@@ -13,10 +13,12 @@ import ArtistDetail from "@/pages/artist-detail";
 import Artworks from "@/pages/artworks";
 import ArtworkDetail from "@/pages/artwork-detail";
 import Exhibitions from "@/pages/exhibitions";
+import ExhibitionDetail from "@/pages/exhibition-detail";
 import Blog from "@/pages/blog";
 import BlogPost from "@/pages/blog-post";
 import About from "@/pages/about";
 import Contact from "@/pages/contact";
+import Appointments from "@/pages/appointments";
 import Orders from "@/pages/orders";
 import Checkout from "@/pages/checkout";
 import Admin from "@/pages/admin";
@@ -39,10 +41,12 @@ function Router() {
       <Route path="/artworks" component={Artworks} />
       <Route path="/artworks/:id" component={ArtworkDetail} />
       <Route path="/exhibitions" component={Exhibitions} />
+      <Route path="/exhibitions/:slug" component={ExhibitionDetail} />
       <Route path="/blog" component={Blog} />
       <Route path="/blog/:id" component={BlogPost} />
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
+      <Route path="/appointments" component={Appointments} />
       <Route path="/checkout" component={Checkout} />
       <Route path="/admin/classic" component={Admin} />
       <Route path="/admin/artists" component={AdminArtists} />

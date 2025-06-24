@@ -53,11 +53,11 @@ export default function PayPalButtonWrapper({
     cleanupPayPal();
 
     const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${
+    script.src = `https://www.sandbox.paypal.com/sdk/js?client-id=${
       import.meta.env.PROD
         ? 'YOUR_LIVE_CLIENT_ID'
-        : 'ATMsHu7tPo_ITSSp5SZ_nm-21wAx9kWXSiXYQUK2vb2tz7K8ZGZy_eKnEw3PcNifIMZlJZOO2kG03ba0'
-    }&currency=${currency}&components=buttons,funding-eligibility&disable-funding=credit,card`;
+        : 'ATMsHu7tPo_ITSSp5SZ_nm-21wAx9kWXSiXYQUK2vb2tz7K8ZGZy_eKnEw3PcNifIMZlJZOO2kG03ba0' // Sandbox client ID
+    }&currency=${currency}&components=buttons,funding-eligibility&disable-funding=credit,card,venmo&commit=true&intent=${intent.toLowerCase()}`;
     
     script.async = true;
     script.setAttribute("data-namespace", "paypal_sdk");
@@ -86,7 +86,7 @@ export default function PayPalButtonWrapper({
       }
       cleanupPayPal();
     };
-  }, [currency]);
+  }, [currency, intent]);
 
   useEffect(() => {
     if (!sdkReady || !buttonsContainerRef.current) return;
@@ -100,31 +100,58 @@ export default function PayPalButtonWrapper({
           color: 'gold',
           shape: 'rect',
           label: 'paypal',
-          tagline: false
+          tagline: false,
+          height: 48
         },
         createOrder: (data, actions) => {
           return actions.order.create({
             purchase_units: [{
               amount: {
                 value: amount,
-                currency_code: currency
-              }
+                currency_code: currency,
+                breakdown: {
+                  item_total: {
+                    value: amount,
+                    currency_code: currency
+                  }
+                }
+              },
+              items: [{
+                name: "Artwork Purchase",
+                description: "Purchase from Art Gallery",
+                quantity: "1",
+                unit_amount: {
+                  value: amount,
+                  currency_code: currency
+                }
+              }]
             }],
-            intent: intent.toUpperCase()
+            application_context: {
+              shipping_preference: 'NO_SHIPPING'
+            }
           });
         },
         onApprove: async (data, actions) => {
           try {
             const details = await actions.order.capture();
             console.log('Payment completed:', details);
-            onSuccess(details.id);
+            if (details.status === "COMPLETED") {
+              onSuccess(details.id);
+            } else {
+              setLoadError(`Payment status: ${details.status}`);
+            }
           } catch (err) {
             console.error("Payment capture failed", err);
+            setLoadError(`Payment failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
           }
         },
         onError: (err) => {
           console.error("PayPal error", err);
-          setLoadError(`Payment error: ${err.message || err}`);
+          setLoadError(`Payment error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        },
+        onCancel: (data) => {
+          console.log("Payment cancelled", data);
+          setLoadError('Payment was cancelled');
         }
       });
 
@@ -138,19 +165,22 @@ export default function PayPalButtonWrapper({
       }
     } catch (err) {
       console.error("PayPal buttons initialization failed", err);
-      setLoadError(`Initialization failed: ${err.message || err}`);
+      setLoadError(`Initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }, [sdkReady, amount, currency, intent, onSuccess]);
 
   return (
     <div className="paypal-container">
       {loadError ? (
-        <div className="error-message">
-          Payment initialization failed. Please try again or use another method.
-          <div className="error-detail">{loadError}</div>
+        <div className="text-red-600 p-4 bg-red-50 rounded-md">
+          <p className="font-medium">Payment initialization failed</p>
+          <p className="text-sm mt-1">Please try again or use another method.</p>
+          {loadError && <p className="text-xs mt-2">{loadError}</p>}
         </div>
       ) : !sdkReady ? (
-        <div className="loading-message">Loading payment options...</div>
+        <div className="text-gray-600 p-4 bg-gray-50 rounded-md">
+          Loading payment options...
+        </div>
       ) : (
         <div ref={buttonsContainerRef} id="paypal-button-container"></div>
       )}

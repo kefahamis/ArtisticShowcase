@@ -35,8 +35,8 @@ export default function ArtworkDetail() {
     setIsLiked(!isLiked);
     toast({
       title: isLiked ? "Removed from favorites" : "Added to favorites",
-      description: isLiked 
-        ? "Artwork removed from your favorites" 
+      description: isLiked
+        ? "Artwork removed from your favorites"
         : "Artwork added to your favorites",
     });
   };
@@ -93,7 +93,7 @@ export default function ArtworkDetail() {
           {/* Image Section */}
           <div className="space-y-4">
             <ImageZoom src={artwork.imageUrl} alt={artwork.title} />
-            
+
             {/* Action Buttons */}
             <div className="flex gap-4">
               <Button
@@ -127,16 +127,18 @@ export default function ArtworkDetail() {
 
             {/* Availability Status */}
             <div className="mb-6">
-              <Badge 
+              <Badge
                 className={
-                  artwork.availability === "available" 
-                    ? "bg-green-100 text-green-800" 
+                  artwork.availability === "available"
+                    ? "bg-green-100 text-green-800"
                     : artwork.availability === "sold"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-yellow-100 text-yellow-800"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-yellow-100 text-yellow-800"
                 }
               >
-                {artwork.availability.charAt(0).toUpperCase() + artwork.availability.slice(1)}
+                {artwork.availability
+                  ? artwork.availability.charAt(0).toUpperCase() + artwork.availability.slice(1)
+                  : "Unknown"}
               </Badge>
             </div>
 
@@ -187,7 +189,7 @@ export default function ArtworkDetail() {
             <div className="space-y-4">
               {artwork.availability === "available" ? (
                 <>
-                  <Button 
+                  <Button
                     onClick={handleAddToCart}
                     className="w-full bg-gray-900 text-white hover:bg-yellow-600 transition-colors py-4 text-lg"
                   >

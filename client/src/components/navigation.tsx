@@ -29,6 +29,7 @@ export default function Navigation() {
     { name: "Artworks", href: "/artworks" },
     { name: "Artists", href: "/artists" },
     { name: "Exhibitions", href: "/exhibitions" },
+    { name: "Appointments", href: "/appointments" },
     { name: "About", href: "/about" },
     { name: "Contact", href: "/contact" },
   ];

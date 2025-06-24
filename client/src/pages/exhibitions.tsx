@@ -1,277 +1,225 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import ArtworkCard from "@/components/artwork-card";
-import { Calendar, MapPin, Clock, Users, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
-import type { Exhibition, ArtworkWithArtist } from "@shared/schema";
 
 export default function Exhibitions() {
-  const { data: currentExhibition, isLoading: loadingExhibition } = useQuery({
-    queryKey: ["/api/exhibitions/current"],
+  const [selectedLocation, setSelectedLocation] = useState("ALL");
+
+  const { data: exhibitions = [], isLoading } = useQuery({
+    queryKey: ["/api/exhibitions"],
   });
 
-  const { data: featuredArtworks = [], isLoading: loadingArtworks } = useQuery({
-    queryKey: ["/api/artworks/featured"],
+  const { data: artists = [] } = useQuery({
+    queryKey: ["/api/artists"],
   });
 
-  if (loadingExhibition || loadingArtworks) {
-    return (
-      <div className="min-h-screen pt-20 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-600">Loading exhibition...</p>
-        </div>
-      </div>
-    );
-  }
+  // Gallery locations
+  const locations = [
+    "ALL",
+    "COSTA MESA", 
+    "LA JOLLA",
+    "LAS VEGAS",
+    "NEW ORLEANS",
+    "NEW YORK",
+    "SAN FRANCISCO",
+    "SCHAUMBURG"
+  ];
 
-  if (!currentExhibition) {
-    return (
-      <div className="min-h-screen pt-20 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-serif text-gray-800">No Current Exhibition</h1>
-          <p className="text-gray-600">Check back soon for upcoming exhibitions.</p>
-        </div>
-      </div>
-    );
-  }
+  // Create slug from title
+  const createSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  };
 
-  const exhibition = currentExhibition as Exhibition;
-  const startDate = new Date(exhibition.startDate);
-  const endDate = new Date(exhibition.endDate);
-  const isOngoing = new Date() >= startDate && new Date() <= endDate;
+  // Mock exhibition data in Martin Lawrence style
+  const exhibitionData = [
+    {
+      id: 1,
+      slug: "philippe-bertho-in-san-francisco-ca",
+      title: "PHILIPPE BERTHO IN SAN FRANCISCO, CA",
+      subtitle: "MEET THE ARTIST LIVE IN GALLERY",
+      location: "SAN FRANCISCO, CA",
+      date: "MAY 18TH, 2025",
+      time: "2 - 4 PM",
+      image: "/api/placeholder/400/300",
+      featured: true,
+      category: "current"
+    },
+    {
+      id: 2,
+      slug: "philippe-bertho-in-south-coast-plaza-mall-costa-mesa-ca",
+      title: "PHILIPPE BERTHO IN SOUTH COAST PLAZA MALL COSTA MESA, CA",
+      subtitle: "SOUTH COAST PLAZA COSTA MESA",
+      location: "COSTA MESA, CA",
+      date: "MAY 17TH, 2025",
+      image: "/api/placeholder/400/300",
+      featured: true,
+      category: "current"
+    },
+    {
+      id: 3,
+      slug: "philippe-bertho-in-la-jolla-california",
+      title: "PHILIPPE BERTHO IN LA JOLLA CALIFORNIA",
+      subtitle: "",
+      location: "LA JOLLA, CA",
+      date: "MAY 16TH, 2025", 
+      time: "6-8 PM",
+      image: "/api/placeholder/400/300",
+      featured: true,
+      category: "current"
+    },
+    {
+      id: 4,
+      slug: "philippe-bertho-comes-to-schaumburg",
+      title: "PHILIPPE BERTHO COMES TO SCHAUMBURG",
+      subtitle: "Experience a night of imagination, art, and surreal wonder",
+      location: "SCHAUMBURG",
+      date: "MAY 15TH, 2025",
+      time: "6 - 8 PM",
+      image: "/api/placeholder/400/300",
+      featured: false,
+      category: "upcoming"
+    },
+    {
+      id: 5,
+      slug: "martin-lawrence-galleries-soho",
+      title: "MARTIN LAWRENCE GALLERIES SOHO",
+      subtitle: "FRANK MORRISON ART RECEPTION",
+      location: "NEW YORK",
+      date: "APRIL 26TH, 2025",
+      image: "/api/placeholder/400/300",
+      featured: false,
+      category: "past"
+    },
+    {
+      id: 6,
+      slug: "april-flowers",
+      title: "APRIL FLOWERS",
+      subtitle: "A CELEBRATION OF SPRING",
+      location: "COSTA MESA",
+      date: "APRIL 20TH, 2025",
+      image: "/api/placeholder/400/300",
+      featured: false,
+      category: "past"
+    }
+  ];
+
+  // Filter exhibitions by location
+  const filteredExhibitions = useMemo(() => {
+    if (selectedLocation === "ALL") {
+      return exhibitionData;
+    }
+    return exhibitionData.filter(exhibition => 
+      exhibition.location.includes(selectedLocation)
+    );
+  }, [selectedLocation]);
 
   return (
-    <div className="min-h-screen bg-white pt-20">
-      {/* Hero Section */}
-      <div className="relative h-[70vh] bg-gray-900 overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${exhibition.imageUrl})`,
-          }}
-        >
-          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-        </div>
-        
-        <div className="relative z-10 container mx-auto px-6 h-full flex items-center">
-          <div className="max-w-3xl text-white space-y-6">
-            <div className="flex items-center gap-4 mb-4">
-              <Badge 
-                variant={isOngoing ? "default" : "secondary"} 
-                className={`${isOngoing ? "bg-green-600 hover:bg-green-700" : "bg-gray-600"} text-white px-4 py-2 text-sm font-medium`}
+    <div className="min-h-screen pt-20 bg-white">
+      {/* Header */}
+      <div className="bg-white py-8 border-b">
+        <div className="max-w-7xl mx-auto px-4">
+          <h1 className="text-3xl font-light text-black mb-8 tracking-wide">
+            EXHIBITIONS
+          </h1>
+          
+          {/* Location Filter Tabs */}
+          <div className="flex flex-wrap gap-6 text-sm">
+            {locations.map((location) => (
+              <button
+                key={location}
+                onClick={() => setSelectedLocation(location)}
+                className={`pb-2 border-b-2 transition-colors ${
+                  selectedLocation === location
+                    ? "border-black text-black font-medium"
+                    : "border-transparent text-gray-500 hover:text-black"
+                }`}
               >
-                {isOngoing ? "Now Showing" : "Exhibition"}
-              </Badge>
-              <div className="flex items-center gap-2 text-sm opacity-90">
-                <Calendar className="w-4 h-4" />
-                <span>
-                  {startDate.toLocaleDateString('en-US', { 
-                    month: 'long', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  })} - {endDate.toLocaleDateString('en-US', { 
-                    month: 'long', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  })}
-                </span>
-              </div>
-            </div>
-            
-            <h1 className="text-5xl md:text-6xl font-serif font-light leading-tight">
-              {exhibition.title}
-            </h1>
-            
-            <p className="text-xl text-gray-200 leading-relaxed max-w-2xl">
-              {exhibition.description}
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Link href="/artworks">
-                <Button size="lg" className="bg-white text-black hover:bg-gray-100 px-8">
-                  View All Artworks
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/artists">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-black px-8">
-                  Meet the Artists
-                </Button>
-              </Link>
-            </div>
+                {location}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Exhibition Details */}
-      <div className="container mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            <div>
-              <h2 className="text-3xl font-serif font-light mb-6">About the Exhibition</h2>
-              <div className="prose prose-lg max-w-none text-gray-700 leading-relaxed">
-                <p>
-                  {exhibition.description}
-                </p>
-                <p>
-                  This carefully curated exhibition brings together works that challenge traditional 
-                  boundaries and invite viewers to engage with art in new and meaningful ways. Each 
-                  piece has been selected for its unique contribution to the contemporary art landscape 
-                  and its ability to spark dialogue and reflection.
-                </p>
-                <p>
-                  The exhibition represents a collaboration between established and emerging artists, 
-                  showcasing diverse perspectives and artistic approaches that define our current 
-                  cultural moment. Visitors will experience a journey through different mediums, 
-                  from traditional painting and sculpture to cutting-edge digital art and installations.
-                </p>
-              </div>
-            </div>
-
-            {/* Featured Artworks */}
-            <div>
-              <h2 className="text-3xl font-serif font-light mb-8">Featured Works</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {(featuredArtworks as ArtworkWithArtist[]).slice(0, 4).map((artwork: ArtworkWithArtist) => (
-                  <ArtworkCard key={artwork.id} artwork={artwork} />
-                ))}
+      {/* Exhibitions Grid */}
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredExhibitions.map((exhibition) => (
+            <Link key={exhibition.id} href={`/exhibitions/${exhibition.slug}`}>
+              <div className="group cursor-pointer">
+                <div className="relative overflow-hidden bg-gray-100 aspect-[4/3]">
+                <img
+                  src={exhibition.image}
+                  alt={exhibition.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                
+                {/* Overlay content for featured exhibitions */}
+                {exhibition.featured && (
+                  <div className="absolute inset-0 bg-black/50 flex items-end p-6">
+                    <div className="text-white">
+                      <div className="text-4xl font-bold mb-2">
+                        {exhibition.title.includes("PHILIPPE") ? "PHILIPPE" : ""}
+                      </div>
+                      <div className="text-4xl font-bold text-red-500 mb-2">
+                        {exhibition.title.includes("BERTHO") ? "BERTHO" : ""}
+                      </div>
+                      <div className="text-sm mb-2">
+                        {exhibition.subtitle}
+                      </div>
+                      <div className="text-sm mb-1">
+                        LIVE IN GALLERY
+                      </div>
+                      <div className="text-xl font-bold mb-2">
+                        {exhibition.location.split(',')[0]}
+                      </div>
+                      <div className="text-sm">
+                        {exhibition.date}
+                      </div>
+                      {exhibition.time && (
+                        <div className="text-sm">
+                          {exhibition.time}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
-              {(featuredArtworks as ArtworkWithArtist[]).length > 4 && (
-                <div className="text-center mt-8">
-                  <Link href="/artworks">
-                    <Button variant="outline" size="lg">
-                      View All Featured Artworks
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </Link>
+              {/* Title and details below image */}
+              <div className="mt-4">
+                <h3 className="text-lg font-medium text-black mb-2 leading-tight">
+                  {exhibition.title}
+                </h3>
+                <div className="text-sm text-gray-600 uppercase tracking-wide">
+                  {exhibition.location}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-8">
-            {/* Exhibition Info */}
-            <Card>
-              <CardContent className="p-6 space-y-6">
-                <h3 className="text-xl font-serif font-medium">Exhibition Information</h3>
-                
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <Calendar className="w-5 h-5 text-gray-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-gray-900">Duration</p>
-                      <p className="text-sm text-gray-600">
-                        {startDate.toLocaleDateString('en-US', { 
-                          month: 'long', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        through {endDate.toLocaleDateString('en-US', { 
-                          month: 'long', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-gray-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-gray-900">Location</p>
-                      <p className="text-sm text-gray-600">Main Gallery</p>
-                      <p className="text-sm text-gray-600">123 Art District Ave</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-gray-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-gray-900">Hours</p>
-                      <p className="text-sm text-gray-600">Tuesday - Saturday: 10am - 6pm</p>
-                      <p className="text-sm text-gray-600">Sunday: 12pm - 5pm</p>
-                      <p className="text-sm text-gray-600">Closed Mondays</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <Users className="w-5 h-5 text-gray-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-gray-900">Admission</p>
-                      <p className="text-sm text-gray-600">Free and open to the public</p>
-                      <p className="text-sm text-gray-600">Group tours available</p>
-                    </div>
-                  </div>
+                <div className="text-sm text-gray-900 mt-1">
+                  {exhibition.date}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Artist Talk */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-xl font-serif font-medium">Upcoming Events</h3>
-                
-                <div className="space-y-4">
-                  <div className="border-l-4 border-gray-900 pl-4">
-                    <p className="font-medium text-gray-900">Artist Talk & Panel Discussion</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Join our featured artists for an intimate discussion about their work 
-                      and creative processes.
-                    </p>
-                    <p className="text-sm font-medium text-gray-900 mt-2">
-                      Saturday, {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })} at 2:00 PM
-                    </p>
-                  </div>
-
-                  <div className="border-l-4 border-gray-900 pl-4">
-                    <p className="font-medium text-gray-900">Gallery Walk & Wine Reception</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Experience the exhibition with a curator-led tour followed by 
-                      wine and light refreshments.
-                    </p>
-                    <p className="text-sm font-medium text-gray-900 mt-2">
-                      Friday, {new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })} at 6:00 PM
-                    </p>
-                  </div>
-                </div>
-
-                <Button className="w-full mt-4" variant="outline">
-                  RSVP for Events
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Newsletter Signup */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-xl font-serif font-medium">Stay Updated</h3>
-                <p className="text-sm text-gray-600">
-                  Subscribe to our newsletter for exhibition updates, artist features, 
-                  and exclusive events.
-                </p>
-                <Link href="/#newsletter">
-                  <Button className="w-full">
-                    Subscribe to Newsletter
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              </div>
+            </Link>
+          ))}
         </div>
+
+        {/* Show message if no exhibitions found */}
+        {filteredExhibitions.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-6xl text-gray-300 mb-4">🎨</div>
+            <h3 className="text-xl font-medium text-gray-600 mb-2">
+              No exhibitions found
+            </h3>
+            <p className="text-gray-500">
+              Try selecting a different location or check back later for updates.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

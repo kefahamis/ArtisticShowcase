@@ -3,6 +3,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom animations for artist portfolio mosaic */
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.6s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.8s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.6s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-slide-in-up-delayed {
+  animation: slide-in-up 0.6s ease-out 0.2s both;
+}
+
+.animate-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animate-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animate-delay-300 {
+  animation-delay: 0.3s;
+}
+
+.animate-delay-400 {
+  animation-delay: 0.4s;
+}
+
+.animate-delay-500 {
+  animation-delay: 0.5s;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -225,21 +308,4 @@
 .button-loading::after {
   content: '';
   @apply inline-block w-4 h-4 ml-2 border-2 border-current border-r-transparent rounded-full animate-spin;
-}
-[data-radix-select-content] {
-  z-index: 10000 !important;
-  position: fixed !important;
-}
-
-[data-radix-popper-content-wrapper] {
-  z-index: 10000 !important;
-}
-
-/* Ensure dialog has lower z-index */
-[data-radix-dialog-overlay] {
-  z-index: 9999 !important;
-}
-
-[data-radix-dialog-content] {
-  z-index: 9999 !important;
 }

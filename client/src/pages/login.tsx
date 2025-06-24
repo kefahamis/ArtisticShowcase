@@ -6,17 +6,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Lock, User } from "lucide-react";
+import { Lock, User, Mail, UserPlus } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const [credentials, setCredentials] = useState({ username: "", password: "" });
-  const [isLoading, setIsLoading] = useState(false);
+  const [loginCredentials, setLoginCredentials] = useState({ username: "", password: "" });
+  const [signupData, setSignupData] = useState({ 
+    firstName: "", 
+    lastName: "", 
+    email: "", 
+    password: "", 
+    confirmPassword: "" 
+  });
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsLoginLoading(true);
 
     try {
       const response = await fetch("/api/admin/login", {
@@ -24,7 +32,7 @@ export default function Login() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify(loginCredentials),
       });
 
       if (!response.ok) {
@@ -48,70 +56,290 @@ export default function Login() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSignupLoading(true);
+
+    // Validate password confirmation
+    if (signupData.password !== signupData.confirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
+      setIsSignupLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/users/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: signupData.email,
+          email: signupData.email,
+          password: signupData.password,
+          firstName: signupData.firstName,
+          lastName: signupData.lastName,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Registration failed");
+      }
+
+      toast({
+        title: "Account Created Successfully",
+        description: "You can now sign in with your credentials.",
+      });
+      
+      // Clear signup form
+      setSignupData({ 
+        firstName: "", 
+        lastName: "", 
+        email: "", 
+        password: "", 
+        confirmPassword: "" 
+      });
+    } catch (error: any) {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Could not create account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSignupLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen pt-20 flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md px-6">
-        <Card className="shadow-lg">
-          <CardHeader className="text-center space-y-4">
-            <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mx-auto">
-              <Lock className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-serif font-light">Admin Login</CardTitle>
-            <p className="text-gray-600 font-light">Access the gallery management system</p>
-          </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-sm font-medium tracking-wide">
-                  Username
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username"
-                    value={credentials.username}
-                    onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
+    <div className="min-h-screen pt-20 bg-gray-50">
+      {/* Hero Section */}
+      <div className="bg-black text-white py-16">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-5xl font-serif font-light mb-4 tracking-wide">
+            MY ACCOUNT
+          </h1>
+          <p className="text-lg text-gray-300 font-light">
+            Sign in to your account or create a new one to access exclusive features
+          </p>
+        </div>
+      </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium tracking-wide">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={credentials.password}
-                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
+      <div className="max-w-6xl mx-auto px-4 py-16">
+        <div className="grid lg:grid-cols-2 gap-12">
+          {/* Login Form */}
+          <div>
+            <Card className="shadow-lg border-0">
+              <CardHeader className="text-center space-y-4 pb-8">
+                <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mx-auto">
+                  <Lock className="w-8 h-8 text-white" />
                 </div>
-              </div>
+                <CardTitle className="text-2xl font-serif font-light tracking-wide">
+                  CUSTOMER LOGIN
+                </CardTitle>
+                <p className="text-gray-600 font-light">
+                  Sign in to access your account
+                </p>
+              </CardHeader>
+              
+              <CardContent className="px-8 pb-8">
+                <form onSubmit={handleLoginSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-username" className="text-sm font-medium tracking-wide uppercase">
+                      Username
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="login-username"
+                        type="text"
+                        placeholder="Enter your username"
+                        value={loginCredentials.username}
+                        onChange={(e) => setLoginCredentials({ ...loginCredentials, username: e.target.value })}
+                        className="pl-10 h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <Button
-                type="submit"
-                className="w-full bg-black text-white hover:bg-gray-800 font-medium tracking-widest uppercase text-sm py-3"
-                disabled={isLoading}
-              >
-                {isLoading ? "SIGNING IN..." : "SIGN IN"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password" className="text-sm font-medium tracking-wide uppercase">
+                      Password
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="login-password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={loginCredentials.password}
+                        onChange={(e) => setLoginCredentials({ ...loginCredentials, password: e.target.value })}
+                        className="pl-10 h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="checkbox" className="rounded border-gray-300" />
+                      <span className="text-gray-600">Remember me</span>
+                    </label>
+                    <a href="#" className="text-gray-600 hover:text-black transition-colors">
+                      Forgot Password?
+                    </a>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-black text-white hover:bg-gray-800 font-medium tracking-widest uppercase text-sm py-4 h-12"
+                    disabled={isLoginLoading}
+                  >
+                    {isLoginLoading ? "SIGNING IN..." : "SIGN IN"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Create Account Form */}
+          <div>
+            <Card className="shadow-lg border-0">
+              <CardHeader className="text-center space-y-4 pb-8">
+                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto">
+                  <UserPlus className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-2xl font-serif font-light tracking-wide">
+                  CREATE ACCOUNT
+                </CardTitle>
+                <p className="text-gray-600 font-light">
+                  Join our community to access exclusive content
+                </p>
+              </CardHeader>
+              
+              <CardContent className="px-8 pb-8">
+                <form onSubmit={handleSignupSubmit} className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName" className="text-sm font-medium tracking-wide uppercase">
+                        First Name
+                      </Label>
+                      <Input
+                        id="firstName"
+                        type="text"
+                        placeholder="First name"
+                        value={signupData.firstName}
+                        onChange={(e) => setSignupData({ ...signupData, firstName: e.target.value })}
+                        className="h-12 text-base"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className="text-sm font-medium tracking-wide uppercase">
+                        Last Name
+                      </Label>
+                      <Input
+                        id="lastName"
+                        type="text"
+                        placeholder="Last name"
+                        value={signupData.lastName}
+                        onChange={(e) => setSignupData({ ...signupData, lastName: e.target.value })}
+                        className="h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email" className="text-sm font-medium tracking-wide uppercase">
+                      Email Address
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={signupData.email}
+                        onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
+                        className="pl-10 h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password" className="text-sm font-medium tracking-wide uppercase">
+                      Password
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        placeholder="Create a password"
+                        value={signupData.password}
+                        onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
+                        className="pl-10 h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium tracking-wide uppercase">
+                      Confirm Password
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Confirm your password"
+                        value={signupData.confirmPassword}
+                        onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
+                        className="pl-10 h-12 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="flex items-start space-x-3 cursor-pointer">
+                      <input type="checkbox" className="rounded border-gray-300 mt-1" required />
+                      <span className="text-sm text-gray-600 leading-relaxed">
+                        I agree to the <a href="#" className="text-black hover:underline">Terms of Service</a> and <a href="#" className="text-black hover:underline">Privacy Policy</a>
+                      </span>
+                    </label>
+                    
+                    <label className="flex items-start space-x-3 cursor-pointer">
+                      <input type="checkbox" className="rounded border-gray-300 mt-1" />
+                      <span className="text-sm text-gray-600 leading-relaxed">
+                        Subscribe to our newsletter for updates and exclusive offers
+                      </span>
+                    </label>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gray-800 text-white hover:bg-black font-medium tracking-widest uppercase text-sm py-4 h-12"
+                    disabled={isSignupLoading}
+                  >
+                    {isSignupLoading ? "CREATING ACCOUNT..." : "CREATE ACCOUNT"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
