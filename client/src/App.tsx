@@ -27,6 +27,8 @@ import AdminArtists from "@/pages/admin-artists";
 import AdminArtworks from "@/pages/admin-artworks";
 import AdminOrders from "@/pages/admin-orders";
 import AdminAnalytics from "@/pages/admin-analytics";
+import AdminMedia from "@/pages/admin-media";
+import AdminUsers from "@/pages/admin-users";
 import AdminBlog from "@/pages/admin-blog";
 import AdminBlogAnalytics from "@/pages/admin-blog-analytics";
 import Login from "@/pages/login";
@@ -55,6 +57,8 @@ function Router() {
       <Route path="/admin/analytics" component={AdminAnalytics} />
       <Route path="/admin/blog" component={AdminBlog} />
       <Route path="/admin/blog/analytics" component={AdminBlogAnalytics} />
+      <Route path="/admin/media" component={AdminMedia} />
+      <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/login" component={Login} />
       <Route component={NotFound} />

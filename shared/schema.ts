@@ -93,6 +93,51 @@ export const blogShares = pgTable("blog_shares", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const mediaFiles = pgTable("media_files", {
+  id: serial("id").primaryKey(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const userAccounts = pgTable("user_accounts", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  role: text("role").default("user"), // user, admin
+  isActive: boolean("is_active").default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const userActivityLogs = pgTable("user_activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => userAccounts.id),
+  action: text("action").notNull(),
+  description: text("description"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dashboardMetrics = pgTable("dashboard_metrics", {
+  id: serial("id").primaryKey(),
+  metricName: text("metric_name").notNull(),
+  metricValue: integer("metric_value").notNull(),
+  metricType: text("metric_type").notNull(), // count, revenue, percentage
+  recordedAt: timestamp("recorded_at").defaultNow(),
+});
+
+
 // Relations
 export const artistsRelations = relations(artists, ({ many }) => ({
   artworks: many(artworks),
@@ -176,6 +221,29 @@ export const insertBlogShareSchema = createInsertSchema(blogShares).omit({
   createdAt: true,
 });
 
+export const insertMediaFileSchema = createInsertSchema(mediaFiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserAccountSchema = createInsertSchema(userAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDashboardMetricSchema = createInsertSchema(dashboardMetrics).omit({
+  id: true,
+  recordedAt: true,
+});
+
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -223,3 +291,14 @@ export type BlogPostWithShares = BlogPost & {
     total: number;
   };
 };
+export type MediaFile = typeof mediaFiles.$inferSelect;
+export type InsertMediaFile = z.infer<typeof insertMediaFileSchema>;
+
+export type UserAccount = typeof userAccounts.$inferSelect;
+export type InsertUserAccount = z.infer<typeof insertUserAccountSchema>;
+
+export type UserActivityLog = typeof userActivityLogs.$inferSelect;
+export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
+
+export type DashboardMetric = typeof dashboardMetrics.$inferSelect;
+export type InsertDashboardMetric = z.infer<typeof insertDashboardMetricSchema>;

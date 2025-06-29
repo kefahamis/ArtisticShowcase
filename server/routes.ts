@@ -390,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/:id/confirm", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const order = await storage.updateOrderStatus(id, "paid");
+      const order = await storage.updateOrderStatus(id, "completed");
       
       // Mark artworks as sold
       const fullOrder = await storage.getOrder(id);
@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Status is required" });
       }
 
-      const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+      const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'completed'];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ message: "Invalid status value" });
       }
@@ -576,7 +576,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: error.message });
     }
   });
+// Media Files routes (Admin only)
+app.get("/api/media", authenticateAdmin, async (req, res) => {
+  try {
+    const files = await storage.getAllMediaFiles();
+    res.json(files);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
+app.post("/api/media", authenticateAdmin, async (req, res) => {
+  try {
+    const fileData = insertMediaFileSchema.parse(req.body);
+    const file = await storage.createMediaFile(fileData);
+    res.status(201).json(file);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.put("/api/media/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const fileData = insertMediaFileSchema.partial().parse(req.body);
+    const file = await storage.updateMediaFile(id, fileData);
+    res.json(file);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.delete("/api/media/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteMediaFile(id);
+    res.status(204).send();
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// User Account routes
+app.get("/api/user-accounts", authenticateAdmin, async (req, res) => {
+  try {
+    const users = await storage.getAllUserAccounts();
+    // Remove password from response
+    const usersWithoutPassword = users.map(user => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    });
+    res.json(usersWithoutPassword);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post("/api/user-accounts", async (req, res) => {
+  try {
+    const userData = insertUserAccountSchema.parse(req.body);
+    
+    // Check if email already exists
+    const existingUser = await storage.getUserAccountByEmail(userData.email);
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+    
+    const user = await storage.createUserAccount({
+      ...userData,
+      password: hashedPassword
+    });
+
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user;
+    res.status(201).json(userWithoutPassword);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.put("/api/user-accounts/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const userData = insertUserAccountSchema.partial().parse(req.body);
+    
+    // Hash password if provided
+    if (userData.password) {
+      userData.password = await bcrypt.hash(userData.password, 10);
+    }
+    
+    const user = await storage.updateUserAccount(id, userData);
+    
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.delete("/api/user-accounts/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await storage.deleteUserAccount(id);
+    res.status(204).send();
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// User login route
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const user = await storage.getUserAccountByEmail(email);
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ message: "Account is disabled" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.json({
+      user: userWithoutPassword,
+      token
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
   const httpServer = createServer(app);
   return httpServer;
 }

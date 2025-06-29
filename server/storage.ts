@@ -1,6 +1,7 @@
 import { 
   users, artists, artworks, exhibitions, orders, orderItems, 
-  newsletterSubscribers, blogPosts, blogShares,
+  newsletterSubscribers,mediaFiles, blogPosts, blogShares, mediaFiles, 
+  userAccounts, userActivityLogs, dashboardMetrics,
   type User, type InsertUser,
   type Artist, type InsertArtist,
   type Artwork, type InsertArtwork, type ArtworkWithArtist,
@@ -9,7 +10,11 @@ import {
   type OrderItem, type InsertOrderItem,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
   type BlogPost, type InsertBlogPost, type BlogPostWithShares,
-  type BlogShare, type InsertBlogShare
+  type BlogShare, type InsertBlogShare,
+  type MediaFile, type InsertMediaFile,
+  type UserAccount, type InsertUserAccount,
+  type UserActivityLog, type InsertUserActivityLog,
+  type DashboardMetric, type InsertDashboardMetric
 } from "@shared/schema";
 import { db, pool } from "./db";
 import { eq, desc, and, sql, ilike, or } from "drizzle-orm";
@@ -73,6 +78,32 @@ export interface IStorage {
   recordBlogShare(share: InsertBlogShare): Promise<BlogShare>;
   getBlogShareStats(blogPostId: number): Promise<any>;
   getAllBlogShareStats(): Promise<any>;
+
+  // Media Files
+  getAllMediaFiles(): Promise<MediaFile[]>;
+  getMediaFile(id: number): Promise<MediaFile | undefined>;
+  createMediaFile(file: InsertMediaFile): Promise<MediaFile>;
+  updateMediaFile(id: number, file: Partial<InsertMediaFile>): Promise<MediaFile>;
+  deleteMediaFile(id: number): Promise<void>;
+
+  // User Accounts
+  getAllUserAccounts(): Promise<UserAccount[]>;
+  getUserAccount(id: number): Promise<UserAccount | undefined>;
+  getUserAccountByEmail(email: string): Promise<UserAccount | undefined>;
+  createUserAccount(user: InsertUserAccount): Promise<UserAccount>;
+  updateUserAccount(id: number, user: Partial<InsertUserAccount>): Promise<UserAccount>;
+  deleteUserAccount(id: number): Promise<void>;
+  getUserStats(): Promise<any>;
+
+  // User Activity Logs
+  getAllUserActivityLogs(): Promise<UserActivityLog[]>;
+  getUserActivityLogs(userId: number): Promise<UserActivityLog[]>;
+  createUserActivityLog(log: InsertUserActivityLog): Promise<UserActivityLog>;
+
+  // Dashboard Metrics
+  getDashboardMetrics(): Promise<any>;
+  createDashboardMetric(metric: InsertDashboardMetric): Promise<DashboardMetric>;
+  getRecentActivity(): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -348,7 +379,7 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         paymentId,
         paymentMethod,
-        status: "paid",
+        status: "completed",
         updatedAt: new Date() 
       })
       .where(eq(orders.id, id))
@@ -406,6 +437,232 @@ export class DatabaseStorage implements IStorage {
       orderBy: (orders, { desc }) => [desc(orders.createdAt)]
     });
     return allOrders;
+  }
+
+  // Blog shares
+  async recordBlogShare(share: InsertBlogShare): Promise<BlogShare> {
+    const [newShare] = await db.insert(blogShares).values(share).returning();
+    return newShare;
+  }
+
+  async getBlogShareStats(blogPostId: number): Promise<any> {
+    const shares = await db.select().from(blogShares).where(eq(blogShares.blogPostId, blogPostId));
+    const stats = {
+      facebook: shares.filter(s => s.platform === 'facebook').length,
+      twitter: shares.filter(s => s.platform === 'twitter').length,
+      linkedin: shares.filter(s => s.platform === 'linkedin').length,
+      copy: shares.filter(s => s.platform === 'copy').length,
+      total: shares.length
+    };
+    return stats;
+  }
+
+  async getAllBlogShareStats(): Promise<any> {
+    const shares = await db.select().from(blogShares);
+    const statsByPost = shares.reduce((acc, share) => {
+      if (share.blogPostId && !acc[share.blogPostId]) {
+        acc[share.blogPostId] = { facebook: 0, twitter: 0, linkedin: 0, copy: 0, total: 0 };
+      }
+      if (share.blogPostId) {
+        acc[share.blogPostId][share.platform]++;
+        acc[share.blogPostId].total++;
+      }
+      return acc;
+    }, {} as Record<number, any>);
+    return statsByPost;
+  }
+
+  async getBlogPostWithShares(id: number): Promise<BlogPostWithShares | undefined> {
+    const post = await this.getBlogPost(id);
+    if (!post) return undefined;
+    
+    const shares = await db.select().from(blogShares).where(eq(blogShares.blogPostId, id));
+    const shareCount = {
+      facebook: shares.filter(s => s.platform === 'facebook').length,
+      twitter: shares.filter(s => s.platform === 'twitter').length,
+      linkedin: shares.filter(s => s.platform === 'linkedin').length,
+      copy: shares.filter(s => s.platform === 'copy').length,
+      total: shares.length
+    };
+    
+    return { ...post, shares, shareCount };
+  }
+
+  // Media Files
+  async getAllMediaFiles(): Promise<MediaFile[]> {
+    return await db.select().from(mediaFiles).orderBy(desc(mediaFiles.createdAt));
+  }
+
+  async getMediaFile(id: number): Promise<MediaFile | undefined> {
+    const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, id));
+    return file || undefined;
+  }
+
+  async createMediaFile(file: InsertMediaFile): Promise<MediaFile> {
+    const [newFile] = await db.insert(mediaFiles).values(file).returning();
+    return newFile;
+  }
+
+  async updateMediaFile(id: number, file: Partial<InsertMediaFile>): Promise<MediaFile> {
+    const [updatedFile] = await db.update(mediaFiles).set(file).where(eq(mediaFiles.id, id)).returning();
+    return updatedFile;
+  }
+
+  async deleteMediaFile(id: number): Promise<void> {
+    await db.delete(mediaFiles).where(eq(mediaFiles.id, id));
+  }
+
+  // User Accounts
+  async getAllUserAccounts(): Promise<UserAccount[]> {
+    return await db.select().from(userAccounts).orderBy(desc(userAccounts.createdAt));
+  }
+
+  async getUserAccount(id: number): Promise<UserAccount | undefined> {
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.id, id));
+    return user || undefined;
+  }
+
+  async getUserAccountByEmail(email: string): Promise<UserAccount | undefined> {
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.email, email));
+    return user || undefined;
+  }
+
+  async createUserAccount(user: InsertUserAccount): Promise<UserAccount> {
+    const [newUser] = await db.insert(userAccounts).values(user).returning();
+    return newUser;
+  }
+
+  async updateUserAccount(id: number, user: Partial<InsertUserAccount>): Promise<UserAccount> {
+    const [updatedUser] = await db.update(userAccounts).set(user).where(eq(userAccounts.id, id)).returning();
+    return updatedUser;
+  }
+
+  async deleteUserAccount(id: number): Promise<void> {
+    await db.delete(userAccounts).where(eq(userAccounts.id, id));
+  }
+
+  async getUserStats(): Promise<any> {
+    const totalUsers = await db.select({ count: sql`count(*)` }).from(userAccounts);
+    const activeUsers = await db.select({ count: sql`count(*)` }).from(userAccounts).where(eq(userAccounts.isActive, true));
+    const adminUsers = await db.select({ count: sql`count(*)` }).from(userAccounts).where(eq(userAccounts.role, 'admin'));
+    
+    const totalCount = Number(totalUsers[0]?.count) || 0;
+    const activeCount = Number(activeUsers[0]?.count) || 0;
+    const adminCount = Number(adminUsers[0]?.count) || 0;
+    
+    return {
+      total: totalCount,
+      active: activeCount,
+      admins: adminCount,
+      inactive: totalCount - activeCount
+    };
+  }
+
+  // User Activity Logs
+  async getAllUserActivityLogs(): Promise<UserActivityLog[]> {
+    return await db.select().from(userActivityLogs).orderBy(desc(userActivityLogs.createdAt));
+  }
+
+  async getUserActivityLogs(userId: number): Promise<UserActivityLog[]> {
+    return await db.select().from(userActivityLogs)
+      .where(eq(userActivityLogs.userId, userId))
+      .orderBy(desc(userActivityLogs.createdAt));
+  }
+
+  async createUserActivityLog(log: InsertUserActivityLog): Promise<UserActivityLog> {
+    const [newLog] = await db.insert(userActivityLogs).values(log).returning();
+    return newLog;
+  }
+
+  // Dashboard Metrics
+  async getDashboardMetrics(): Promise<any> {
+    // Get basic counts
+    const [artistCount] = await db.select({ count: sql`count(*)` }).from(artists);
+    const [artworkCount] = await db.select({ count: sql`count(*)` }).from(artworks);
+    const [orderCount] = await db.select({ count: sql`count(*)` }).from(orders);
+    const [blogPostCount] = await db.select({ count: sql`count(*)` }).from(blogPosts);
+    const [userCount] = await db.select({ count: sql`count(*)` }).from(userAccounts);
+    
+    // Get revenue from orders
+    const [revenue] = await db.select({ total: sql`sum(${orders.total})` }).from(orders);
+    
+    // Get recent activity counts
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [recentOrders] = await db.select({ count: sql`count(*)` })
+      .from(orders)
+      .where(sql`${orders.createdAt} >= ${thirtyDaysAgo}`);
+    
+    const [recentUsers] = await db.select({ count: sql`count(*)` })
+      .from(userAccounts)
+      .where(sql`${userAccounts.createdAt} >= ${thirtyDaysAgo}`);
+
+    return {
+      totalArtists: artistCount.count || 0,
+      totalArtworks: artworkCount.count || 0,
+      totalOrders: orderCount.count || 0,
+      totalRevenue: revenue.total || 0,
+      totalBlogPosts: blogPostCount.count || 0,
+      totalUsers: userCount.count || 0,
+      recentOrders: recentOrders.count || 0,
+      recentUsers: recentUsers.count || 0
+    };
+  }
+
+  async createDashboardMetric(metric: InsertDashboardMetric): Promise<DashboardMetric> {
+    const [newMetric] = await db.insert(dashboardMetrics).values(metric).returning();
+    return newMetric;
+  }
+
+  async getRecentActivity(): Promise<any[]> {
+    // Get recent orders
+    const recentOrders = await db.query.orders.findMany({
+      limit: 5,
+      orderBy: (orders, { desc }) => [desc(orders.createdAt)],
+      columns: { id: true, customerEmail: true, total: true, createdAt: true }
+    });
+
+    // Get recent user registrations
+    const recentUsers = await db.query.userAccounts.findMany({
+      limit: 5,
+      orderBy: (userAccounts, { desc }) => [desc(userAccounts.createdAt)],
+      columns: { id: true, email: true, firstName: true, lastName: true, createdAt: true }
+    });
+
+    // Get recent blog posts
+    const recentPosts = await db.query.blogPosts.findMany({
+      limit: 5,
+      orderBy: (blogPosts, { desc }) => [desc(blogPosts.createdAt)],
+      columns: { id: true, title: true, createdAt: true, published: true }
+    });
+
+    // Combine and format activities
+    const activities = [
+      ...recentOrders.map(order => ({
+        type: 'order',
+        id: order.id,
+        description: `New order from ${order.customerEmail}`,
+        amount: order.total,
+        timestamp: order.createdAt
+      })),
+      ...recentUsers.map(user => ({
+        type: 'user',
+        id: user.id,
+        description: `New user registration: ${user.firstName} ${user.lastName}`,
+        email: user.email,
+        timestamp: user.createdAt
+      })),
+      ...recentPosts.map(post => ({
+        type: 'blog',
+        id: post.id,
+        description: `${post.published ? 'Published' : 'Created'} blog post: ${post.title}`,
+        timestamp: post.createdAt
+      }))
+    ];
+
+    // Sort by timestamp and return latest 10
+    return activities
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10);
   }
 }
 

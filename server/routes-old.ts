@@ -388,7 +388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/:id/confirm", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const order = await storage.updateOrderStatus(id, "paid");
+      const order = await storage.updateOrderStatus(id, "completed");
       
       // Mark artworks as sold
       const fullOrder = await storage.getOrder(id);

@@ -38,7 +38,7 @@ export default function Orders() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "paid":
+      case "completed":
         return "bg-green-100 text-green-800";
       case "pending":
         return "bg-yellow-100 text-yellow-800";

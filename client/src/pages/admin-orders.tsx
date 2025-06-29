@@ -8,6 +8,15 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import AdminSidebar from "@/components/admin-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { usePagination } from "@/hooks/use-pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +39,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  ShoppingCart, 
-  Eye, 
+import {
+  ShoppingCart,
+  Eye,
   Calendar,
   DollarSign,
   Package,
@@ -174,7 +183,20 @@ export default function AdminOrders() {
       minute: '2-digit'
     });
   };
-
+  // Pagination
+  const {
+    currentPage,
+    totalPages,
+    paginatedData: paginatedOrders,
+    goToPage,
+    hasNext,
+    hasPrevious,
+    nextPage,
+    previousPage,
+    startItem,
+    endItem,
+    totalItems,
+  } = usePagination({ data: orders, itemsPerPage: 10 });
   return (
     <AdminSidebar>
       <div className="flex-1 overflow-auto">
@@ -268,7 +290,7 @@ export default function AdminOrders() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.isArray(orders) && orders.map((order: any) => (
+                    {paginatedOrders.map((order: any) => (
                       <TableRow key={order.id}>
                         <TableCell className="font-medium">#{order.id}</TableCell>
                         <TableCell>
@@ -323,6 +345,43 @@ export default function AdminOrders() {
               {Array.isArray(orders) && orders.length === 0 && !loadingOrders && (
                 <div className="text-center py-8 text-gray-500">
                   No orders found. Orders will appear here when customers make purchases.
+                </div>
+              )}
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    Showing {startItem} to {endItem} of {totalItems} artists
+                  </div>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={previousPage}
+                          className={hasPrevious ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                        />
+                      </PaginationItem>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => goToPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={nextPage}
+                          className={hasNext ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
               )}
             </CardContent>
