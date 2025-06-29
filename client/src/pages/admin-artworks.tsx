@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // ADDED useRef
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -7,9 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-// UPDATED: Import SelectPortal directly from Radix UI
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SelectPortal } from "@radix-ui/react-select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -85,23 +83,38 @@ export default function AdminArtworks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  // ADDED: Refs for the main content area and the dialog content
+  // ADDED: A ref to the main content area that should be made inert
   const mainContentRef = useRef<HTMLDivElement>(null);
-  const dialogContentRef = useRef<HTMLDivElement>(null);
 
-  // ADDED: useEffect to apply the `inert` attribute when the dialog opens
+  // ADDED: useEffect to apply the 'inert' attribute
   useEffect(() => {
-    const mainContentElement = mainContentRef.current;
-    if (mainContentElement) {
-      if ('inert' in mainContentElement) {
-        // Use `inert` if supported
-        mainContentElement.inert = isDialogOpen;
-      } else {
-        // Fallback to `aria-hidden` for older browsers
-        mainContentElement.setAttribute('aria-hidden', isDialogOpen ? 'true' : 'false');
-      }
+    // Check if the browser supports the `inert` attribute
+    if (!('inert' in document.createElement('div'))) {
+        console.warn("The 'inert' attribute is not supported by this browser. Consider a polyfill for full accessibility.");
+        // Fallback for older browsers: use aria-hidden (which might cause the warning)
+        if (mainContentRef.current) {
+            mainContentRef.current.setAttribute('aria-hidden', isDialogOpen ? 'true' : 'false');
+        }
+        return; // Exit if no support
     }
-  }, [isDialogOpen]);
+    
+    // The main content area to make inert
+    const mainContentElement = mainContentRef.current;
+    
+    // The dialog content element, which should NOT be inert
+    // We can get this from the dialog's state, but for simplicity, we'll
+    // just make the rest of the page inert.
+    
+    if (mainContentElement) {
+        if (isDialogOpen) {
+            // When the dialog opens, make the main content inert
+            mainContentElement.inert = true;
+        } else {
+            // When the dialog closes, remove the inert attribute
+            mainContentElement.inert = false;
+        }
+    }
+  }, [isDialogOpen]); // Re-run this effect whenever the dialog's open state changes
 
   // --- Authentication Check ---
   useEffect(() => {
@@ -116,6 +129,7 @@ export default function AdminArtworks() {
   const authenticatedRequest = useCallback(
     async <T,>(method: string, url: string, data?: any): Promise<T | null> => {
       const token = localStorage.getItem("admin_token");
+
       if (!token) {
         console.error("Authentication Error: No admin_token found. Redirecting.");
         setLocation("/login");
@@ -138,13 +152,16 @@ export default function AdminArtworks() {
           setLocation("/login");
           throw new Error("Authentication failed. Please log in again.");
         }
+
         if (!response.ok && response.status !== 304) {
           const errorBody = await response.json().catch(() => ({ message: "Unknown error" }));
           throw new Error(errorBody.message || `API request failed with status: ${response.status}`);
         }
+
         if (response.status === 204 || response.status === 304) {
           return null;
         }
+
         return (await response.json()) as T;
       } catch (error: any) {
         console.error(`Fetch operation failed for ${method} ${url}:`, error);
@@ -343,11 +360,11 @@ export default function AdminArtworks() {
   // --- Rendered Component ---
   return (
     <AdminSidebar>
-      {/* ATTACH THE REF HERE to the main content div that we want to make inert */}
+      {/* ADDED: Attach the ref to the main content div */}
       <div ref={mainContentRef} className="flex-1 overflow-auto bg-gray-50">
         {/* Header Section */}
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4 shadow-sm">
-          <SidebarTrigger className="-ml-1" />
+        <header className="flex items-center justify-between mb-8 p-4 bg-white rounded-lg shadow-sm">
+          <SidebarTrigger />
           <div className="flex-1 flex items-center justify-between">
             <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
               <GalleryHorizontal className="w-6 h-6 text-primary" />
@@ -365,7 +382,7 @@ export default function AdminArtworks() {
                 <RefreshCw className="h-4 w-4" />
                 Refresh List
               </Button>
-              {/* The Dialog is here, which will NOT be made inert. */}
+              {/* The Dialog is here. It will not be made inert. */}
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={handleNewArtwork} className="flex items-center gap-2">
@@ -374,8 +391,6 @@ export default function AdminArtworks() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent
-                  // ATTACH THE REF TO THE DIALOG CONTENT
-                  ref={dialogContentRef}
                   className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto bg-white p-6 rounded-lg shadow-xl"
                   onOpenAutoFocus={(e) => e.preventDefault()}
                 >
@@ -417,20 +432,15 @@ export default function AdminArtworks() {
                                 <FormControl>
                                   <SelectTrigger><SelectValue placeholder="Select an artist" /></SelectTrigger>
                                 </FormControl>
-                                {/* REFINED FIX: Use SelectPortal with the dialogContentRef */}
-                                {dialogContentRef.current && (
-                                  <SelectPortal container={dialogContentRef.current}>
-                                    <SelectContent side="bottom" sideOffset={8} position="popper" className="z-50">
-                                      {isLoadingArtists ? (
-                                        <div className="flex items-center justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-gray-500" /></div>
-                                      ) : (artists && artists.length > 0 ? artists.map((artist: Artist) => (
-                                        <SelectItem key={artist.id} value={artist.id.toString()}>{artist.name}</SelectItem>
-                                      )) : (
-                                        <SelectItem value="" disabled>No artists available. Create an artist first.</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </SelectPortal>
-                                )}
+                                <SelectContent side="bottom" sideOffset={8} position="popper" className="z-[9999]">
+                                  {isLoadingArtists ? (
+                                    <div className="flex items-center justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-gray-500" /></div>
+                                  ) : (artists && artists.length > 0 ? artists.map((artist: Artist) => (
+                                    <SelectItem key={artist.id} value={artist.id.toString()}>{artist.name}</SelectItem>
+                                  )) : (
+                                    <SelectItem value="" disabled>No artists available. Create an artist first.</SelectItem>
+                                  ))}
+                                </SelectContent>
                               </Select>
                               <FormMessage />
                             </FormItem>
@@ -489,16 +499,11 @@ export default function AdminArtworks() {
                               </FormLabel>
                               <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
-                                {/* REFINED FIX: Use SelectPortal with the dialogContentRef */}
-                                {dialogContentRef.current && (
-                                  <SelectPortal container={dialogContentRef.current}>
-                                    <SelectContent side="bottom" sideOffset={8} position="popper" className="z-50">
-                                      {["painting", "sculpture", "photography", "digital", "mixed-media", "drawing", "printmaking", "ceramics", "textiles", "installation"].map(cat => (
-                                        <SelectItem key={cat} value={cat} className="capitalize">{cat.replace('-', ' ')}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </SelectPortal>
-                                )}
+                                <SelectContent side="bottom" sideOffset={8} position="popper" className="z-[9999]">
+                                  {["painting", "sculpture", "photography", "digital", "mixed-media", "drawing", "printmaking", "ceramics", "textiles", "installation"].map(cat => (
+                                    <SelectItem key={cat} value={cat} className="capitalize">{cat.replace('-', ' ')}</SelectItem>
+                                  ))}
+                                </SelectContent>
                               </Select>
                               <FormMessage />
                             </FormItem>
@@ -515,16 +520,11 @@ export default function AdminArtworks() {
                               </FormLabel>
                               <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="Select availability" /></SelectTrigger></FormControl>
-                                {/* REFINED FIX: Use SelectPortal with the dialogContentRef */}
-                                {dialogContentRef.current && (
-                                  <SelectPortal container={dialogContentRef.current}>
-                                    <SelectContent side="bottom" sideOffset={8} position="popper" className="z-50">
-                                      <SelectItem value="available">Available</SelectItem>
-                                      <SelectItem value="sold">Sold</SelectItem>
-                                      <SelectItem value="reserved">Reserved</SelectItem>
-                                    </SelectContent>
-                                  </SelectPortal>
-                                )}
+                                <SelectContent side="bottom" sideOffset={8} position="popper" className="z-[9999]">
+                                  <SelectItem value="available">Available</SelectItem>
+                                  <SelectItem value="sold">Sold</SelectItem>
+                                  <SelectItem value="reserved">Reserved</SelectItem>
+                                </SelectContent>
                               </Select>
                               <FormMessage />
                             </FormItem>

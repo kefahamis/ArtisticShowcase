@@ -1,6 +1,10 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CalendarDays, Clock, MapPin, Sparkles, XCircle, GalleryHorizontal } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton"; // Assuming Skeleton is correctly imported or defined
 
 export default function Exhibitions() {
   const [selectedLocation, setSelectedLocation] = useState("ALL");
@@ -9,78 +13,54 @@ export default function Exhibitions() {
     queryKey: ["/api/exhibitions"],
   });
 
-  const { data: artists = [] } = useQuery({
-    queryKey: ["/api/artists"],
-  });
-
-  // Gallery locations
-  const locations = [
-    "ALL",
-    "COSTA MESA", 
-    "LA JOLLA",
-    "LAS VEGAS",
-    "NEW ORLEANS",
-    "NEW YORK",
-    "SAN FRANCISCO",
-    "SCHAUMBURG"
-  ];
-
-  // Create slug from title
-  const createSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-  };
-
   // Mock exhibition data in Martin Lawrence style
-  const exhibitionData = [
+  // Using https://placehold.co for better visual demonstration
+  const exhibitionData = useMemo(() => [
     {
       id: 1,
-      slug: "philippe-bertho-in-san-francisco-ca",
-      title: "PHILIPPE BERTHO IN SAN FRANCISCO, CA",
+      slug: "philippe-bertho-in-san-francisco",
+      title: "PHILIPPE BERTHO: NEW PERSPECTIVES",
       subtitle: "MEET THE ARTIST LIVE IN GALLERY",
-      location: "SAN FRANCISCO, CA",
+      location: "SAN FRANCISCO",
       date: "MAY 18TH, 2025",
       time: "2 - 4 PM",
-      image: "/api/placeholder/400/300",
+      image: "https://placehold.co/600x450/A7C7E7/FFFFFF?text=BERTHO+SF", // Light blue
       featured: true,
       category: "current"
     },
     {
       id: 2,
-      slug: "philippe-bertho-in-south-coast-plaza-mall-costa-mesa-ca",
-      title: "PHILIPPE BERTHO IN SOUTH COAST PLAZA MALL COSTA MESA, CA",
-      subtitle: "SOUTH COAST PLAZA COSTA MESA",
-      location: "COSTA MESA, CA",
+      slug: "philippe-bertho-in-costa-mesa",
+      title: "PHILIPPE BERTHO: COASTAL REFLECTIONS",
+      subtitle: "SOUTH COAST PLAZA MALL",
+      location: "COSTA MESA",
       date: "MAY 17TH, 2025",
-      image: "/api/placeholder/400/300",
+      time: "3 - 5 PM",
+      image: "https://placehold.co/600x450/B8E994/333333?text=BERTHO+CM", // Light green
       featured: true,
       category: "current"
     },
     {
       id: 3,
-      slug: "philippe-bertho-in-la-jolla-california",
-      title: "PHILIPPE BERTHO IN LA JOLLA CALIFORNIA",
-      subtitle: "",
-      location: "LA JOLLA, CA",
-      date: "MAY 16TH, 2025", 
-      time: "6-8 PM",
-      image: "/api/placeholder/400/300",
+      slug: "philippe-bertho-in-la-jolla",
+      title: "PHILIPPE BERTHO: LA JOLLA SOIREE",
+      subtitle: "AN EVENING WITH THE ARTIST",
+      location: "LA JOLLA",
+      date: "MAY 16TH, 2025",
+      time: "6 - 8 PM",
+      image: "https://placehold.co/600x450/FFC0CB/000000?text=BERTHO+LAJ", // Pink
       featured: true,
       category: "current"
     },
     {
       id: 4,
       slug: "philippe-bertho-comes-to-schaumburg",
-      title: "PHILIPPE BERTHO COMES TO SCHAUMBURG",
+      title: "PHILIPPE BERTHO: SURREAL ENCOUNTERS",
       subtitle: "Experience a night of imagination, art, and surreal wonder",
       location: "SCHAUMBURG",
       date: "MAY 15TH, 2025",
       time: "6 - 8 PM",
-      image: "/api/placeholder/400/300",
+      image: "https://placehold.co/600x450/FFD700/333333?text=BERTHO+SCH", // Gold
       featured: false,
       category: "upcoming"
     },
@@ -91,135 +71,230 @@ export default function Exhibitions() {
       subtitle: "FRANK MORRISON ART RECEPTION",
       location: "NEW YORK",
       date: "APRIL 26TH, 2025",
-      image: "/api/placeholder/400/300",
+      time: "5 - 7 PM",
+      image: "https://placehold.co/600x450/ADD8E6/000000?text=MLG+NY", // Light blue
       featured: false,
       category: "past"
     },
     {
       id: 6,
       slug: "april-flowers",
-      title: "APRIL FLOWERS",
-      subtitle: "A CELEBRATION OF SPRING",
+      title: "APRIL FLOWERS: GROUP SHOW",
+      subtitle: "A CELEBRATION OF SPRING AND RENEWAL",
       location: "COSTA MESA",
       date: "APRIL 20TH, 2025",
-      image: "/api/placeholder/400/300",
+      time: "1 - 4 PM",
+      image: "https://placehold.co/600x450/C6E2FF/000000?text=APRIL+FLWR", // Lighter blue
       featured: false,
       category: "past"
+    },
+    {
+      id: 7,
+      slug: "renaissance-reimagined-las-vegas",
+      title: "RENAISSANCE REIMAGINED",
+      subtitle: "A JOURNEY THROUGH TIME AND ART",
+      location: "LAS VEGAS",
+      date: "JUNE 10TH, 2025",
+      time: "7 - 9 PM",
+      image: "https://placehold.co/600x450/FFDEAD/000000?text=RENAISSANCE+LV", // Navajo White
+      featured: false,
+      category: "upcoming"
+    },
+    {
+      id: 8,
+      slug: "jazz-and-art-new-orleans",
+      title: "JAZZ & ART: NEW ORLEANS VIBES",
+      subtitle: "AN EVENING OF SOULFUL EXPRESSION",
+      location: "NEW ORLEANS",
+      date: "JULY 5TH, 2025",
+      time: "6 - 8 PM",
+      image: "https://placehold.co/600x450/DDA0DD/000000?text=JAZZ+NOLA", // Plum
+      featured: false,
+      category: "upcoming"
     }
-  ];
+  ], []); // useMemo to prevent re-creation on every render
+
+  // Gallery locations - standardized to match exhibitionData
+  const locations = useMemo(() => [
+    "ALL",
+    "COSTA MESA",
+    "LA JOLLA",
+    "LAS VEGAS",
+    "NEW ORLEANS",
+    "NEW YORK",
+    "SAN FRANCISCO",
+    "SCHAUMBURG"
+  ], []);
 
   // Filter exhibitions by location
   const filteredExhibitions = useMemo(() => {
     if (selectedLocation === "ALL") {
       return exhibitionData;
     }
-    return exhibitionData.filter(exhibition => 
-      exhibition.location.includes(selectedLocation)
+    return exhibitionData.filter(exhibition =>
+      exhibition.location === selectedLocation
     );
-  }, [selectedLocation]);
+  }, [selectedLocation, exhibitionData]);
+
+  // Combine and sort by category: current, upcoming, then past
+  const sortedExhibitions = useMemo(() => {
+    const current = filteredExhibitions.filter(e => e.category === "current");
+    const upcoming = filteredExhibitions.filter(e => e.category === "upcoming");
+    const past = filteredExhibitions.filter(e => e.category === "past");
+    return [...current, ...upcoming, ...past];
+  }, [filteredExhibitions]);
+
 
   return (
-    <div className="min-h-screen pt-20 bg-white">
-      {/* Header */}
-      <div className="bg-white py-8 border-b">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-3xl font-light text-black mb-8 tracking-wide">
-            EXHIBITIONS
-          </h1>
-          
-          {/* Location Filter Tabs */}
-          <div className="flex flex-wrap gap-6 text-sm">
+    <div className="min-h-screen bg-gray-50 text-gray-900 antialiased font-sans">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-white to-gray-100 py-32 md:py-40">
+        <div className="container relative z-10 mx-auto px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-6xl md:text-7xl font-serif font-bold mb-6 text-gray-900 leading-tight tracking-tighter drop-shadow-lg">
+              Explore Our Exhibitions
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-700 font-light leading-relaxed max-w-3xl mx-auto mb-12">
+              Discover a diverse range of current, upcoming, and past exhibitions across our global gallery network.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Main Content Area */}
+      <div className="container mx-auto px-6 lg:px-8 py-20">
+        {/* Location Filter Tabs */}
+        <div className="mb-16 text-center">
+          <h2 className="text-4xl font-serif font-bold mb-8 text-gray-900">Filter by Location</h2>
+          <div className="flex flex-wrap justify-center gap-4 md:gap-6">
             {locations.map((location) => (
               <button
                 key={location}
                 onClick={() => setSelectedLocation(location)}
-                className={`pb-2 border-b-2 transition-colors ${
-                  selectedLocation === location
-                    ? "border-black text-black font-medium"
-                    : "border-transparent text-gray-500 hover:text-black"
-                }`}
+                className={`py-3 px-6 rounded-full font-semibold text-lg transition-all duration-300 shadow-md
+                  ${selectedLocation === location
+                    ? "bg-gray-900 text-white transform scale-105 hover:bg-gray-800"
+                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
               >
                 {location}
               </button>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Exhibitions Grid */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredExhibitions.map((exhibition) => (
-            <Link key={exhibition.id} href={`/exhibitions/${exhibition.slug}`}>
-              <div className="group cursor-pointer">
-                <div className="relative overflow-hidden bg-gray-100 aspect-[4/3]">
-                <img
-                  src={exhibition.image}
-                  alt={exhibition.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                
-                {/* Overlay content for featured exhibitions */}
-                {exhibition.featured && (
-                  <div className="absolute inset-0 bg-black/50 flex items-end p-6">
-                    <div className="text-white">
-                      <div className="text-4xl font-bold mb-2">
-                        {exhibition.title.includes("PHILIPPE") ? "PHILIPPE" : ""}
-                      </div>
-                      <div className="text-4xl font-bold text-red-500 mb-2">
-                        {exhibition.title.includes("BERTHO") ? "BERTHO" : ""}
-                      </div>
-                      <div className="text-sm mb-2">
-                        {exhibition.subtitle}
-                      </div>
-                      <div className="text-sm mb-1">
-                        LIVE IN GALLERY
-                      </div>
-                      <div className="text-xl font-bold mb-2">
-                        {exhibition.location.split(',')[0]}
-                      </div>
-                      <div className="text-sm">
-                        {exhibition.date}
-                      </div>
-                      {exhibition.time && (
-                        <div className="text-sm">
-                          {exhibition.time}
+        {/* Exhibitions Grid */}
+        <section className="pb-16">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <Card key={index} className="overflow-hidden rounded-3xl shadow-lg border-none animate-pulse bg-white">
+                  <Skeleton className="h-64 w-full rounded-b-none" />
+                  <CardHeader className="p-8 space-y-4">
+                    <Skeleton className="h-5 w-24 rounded-full mb-2" />
+                    <Skeleton className="h-8 w-3/4" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardHeader>
+                  <CardContent className="px-8 pb-8">
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : sortedExhibitions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+              {sortedExhibitions.map((exhibition) => (
+                <Link key={exhibition.id} href={`/exhibitions/${exhibition.slug}`} className="block group">
+                  <Card className="overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border-none bg-white">
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      <img
+                        src={exhibition.image}
+                        alt={exhibition.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => { e.currentTarget.src = "https://placehold.co/600x450/E0E0E0/333333?text=Image+Error"; }}
+                      />
+
+                      {/* Featured Overlay or Category Badge */}
+                      {exhibition.featured ? (
+                        <div className="absolute inset-0 bg-black/60 flex flex-col items-start justify-end p-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <Sparkles className="w-12 h-12 text-yellow-400 mb-4 drop-shadow-lg" />
+                          <h3 className="text-4xl font-serif font-bold leading-tight mb-2 uppercase drop-shadow-lg">
+                            {exhibition.title.split(":")[0]}
+                          </h3>
+                          {exhibition.subtitle && (
+                            <p className="text-lg font-medium text-gray-200 mb-2 drop-shadow-md">
+                              {exhibition.subtitle}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-4 text-gray-100 text-base font-semibold">
+                            <MapPin className="w-5 h-5" /> {exhibition.location}
+                          </div>
+                          <div className="flex items-center gap-4 text-gray-100 text-base font-semibold mt-1">
+                            <CalendarDays className="w-5 h-5" /> {exhibition.date}
+                            {exhibition.time && (
+                                <><Clock className="w-5 h-5 ml-4" /> {exhibition.time}</>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="absolute top-6 left-6 z-10">
+                          <Badge className="bg-white/90 text-gray-800 font-semibold px-4 py-1.5 rounded-full shadow-md backdrop-blur-sm">
+                            {exhibition.category.toUpperCase()}
+                          </Badge>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Title and details below image */}
-              <div className="mt-4">
-                <h3 className="text-lg font-medium text-black mb-2 leading-tight">
-                  {exhibition.title}
-                </h3>
-                <div className="text-sm text-gray-600 uppercase tracking-wide">
-                  {exhibition.location}
-                </div>
-                <div className="text-sm text-gray-900 mt-1">
-                  {exhibition.date}
-                </div>
-              </div>
-              </div>
-            </Link>
-          ))}
-        </div>
 
-        {/* Show message if no exhibitions found */}
-        {filteredExhibitions.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl text-gray-300 mb-4">🎨</div>
-            <h3 className="text-xl font-medium text-gray-600 mb-2">
-              No exhibitions found
-            </h3>
-            <p className="text-gray-500">
-              Try selecting a different location or check back later for updates.
-            </p>
-          </div>
-        )}
+                    <CardHeader className="p-8">
+                      <CardTitle className="text-2xl font-serif font-bold line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
+                        {exhibition.title}
+                      </CardTitle>
+                      {exhibition.subtitle && (
+                        <p className="text-gray-600 text-base font-light line-clamp-2 mt-2 leading-relaxed">
+                          {exhibition.subtitle}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-500 mt-4">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <span className="font-medium">{exhibition.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="w-4 h-4 text-gray-400" />
+                          <span className="font-medium">{exhibition.date}</span>
+                        </div>
+                        {exhibition.time && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">{exhibition.time}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardHeader>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            // Empty state when no exhibitions are found for the selected filter
+            <div className="text-center py-24">
+              <div className="max-w-xl mx-auto">
+                <XCircle className="w-24 h-24 text-gray-300 mx-auto mb-8" />
+                <h3 className="text-4xl font-serif font-bold text-gray-700 mb-6">
+                  No Exhibitions Found
+                </h3>
+                <p className="text-gray-500 text-lg leading-relaxed">
+                  There are no exhibitions matching your selection at this time.
+                  Please try a different location or check back later for new announcements!
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

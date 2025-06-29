@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Clock, User } from "lucide-react";
+import { Calendar, Clock, User, ArrowRight, Rss, Loader2 } from "lucide-react";
 import { type BlogPost } from "@shared/schema";
 
 export default function Blog() {
@@ -12,35 +12,37 @@ export default function Blog() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 antialiased">
       {/* Hero Section */}
-      <section className="bg-white border-b">
-        <div className="container mx-auto px-6 lg:px-8 py-16">
-          <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-serif font-light mb-6">
+      <section className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-6 lg:px-12 py-24 text-center">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-6xl md:text-7xl font-serif font-extrabold text-gray-900 leading-tight mb-6">
               Gallery News & Insights
             </h1>
-            <p className="text-xl text-gray-600 font-light leading-relaxed">
-              Stay updated with the latest exhibitions, artist features, and art world insights from our gallery.
+            <p className="text-xl md:text-2xl text-gray-600 font-light max-w-2xl mx-auto leading-relaxed">
+              Stay updated with the latest exhibitions, artist features, and insights from the vibrant world of art.
             </p>
           </div>
         </div>
       </section>
-
-      {/* Blog Posts */}
-      <section className="py-16">
-        <div className="container mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      
+      <div className="container mx-auto px-6 lg:px-12 py-20">
+        {/* Blog Posts Grid */}
+        <section className="pb-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
             {isLoading ? (
+              // Loading state with 6 skeleton cards
               Array.from({ length: 6 }).map((_, index) => (
-                <Card key={index} className="overflow-hidden shadow-lg">
-                  <Skeleton className="h-64 w-full" />
-                  <CardHeader className="p-6">
-                    <Skeleton className="h-6 w-3/4 mb-3" />
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-4 w-2/3" />
+                <Card key={index} className="overflow-hidden rounded-3xl shadow-lg border-none animate-pulse">
+                  <Skeleton className="h-64 w-full rounded-b-none" />
+                  <CardHeader className="p-8 space-y-4">
+                    <Skeleton className="h-5 w-24 rounded-full" />
+                    <Skeleton className="h-8 w-3/4" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-5/6" />
                   </CardHeader>
-                  <CardContent className="px-6 pb-6">
+                  <CardContent className="px-8 pb-8">
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <Skeleton className="h-4 w-20" />
                       <Skeleton className="h-4 w-24" />
@@ -49,78 +51,80 @@ export default function Blog() {
                 </Card>
               ))
             ) : Array.isArray(posts) && posts.length > 0 ? (
+              // Display published posts
               posts
                 .filter((post: BlogPost) => post.published)
                 .map((post: BlogPost) => (
-                  <Card key={post.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-lg">
-                    <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-                      {post.imageUrl ? (
-                        <img
-                          src={post.imageUrl}
-                          alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-                          <div className="text-center">
-                            <User className="w-16 h-16 text-gray-300 mx-auto mb-2" />
-                            <p className="text-gray-400 text-sm font-light">Gallery News</p>
+                  <Link href={`/blog/${post.id}`} key={post.id} className="block group">
+                    <Card className="overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border-none">
+                      {/* Image container with aspect ratio and hover effect */}
+                      <div className="aspect-[4/3] relative overflow-hidden bg-gray-100">
+                        {post.imageUrl ? (
+                          <img
+                            src={post.imageUrl}
+                            alt={post.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
+                        ) : (
+                          // Image placeholder
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+                            <div className="text-center text-gray-300">
+                              <Rss className="w-20 h-20 mx-auto opacity-70" />
+                              <p className="mt-2 text-sm">No Image</p>
+                            </div>
+                          </div>
+                        )}
+                        {/* Category badge */}
+                        <div className="absolute top-6 left-6 z-10">
+                          <Badge className="bg-white text-gray-800 font-semibold px-4 py-1 rounded-full shadow-md backdrop-blur-sm bg-opacity-80">
+                            {post.category || "General"}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Card Content */}
+                      <CardHeader className="p-8 pb-4">
+                        <CardTitle className="text-3xl font-serif font-bold line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
+                          {post.title}
+                        </CardTitle>
+                        <p className="text-gray-600 font-light line-clamp-3 mt-3 leading-relaxed">
+                          {post.excerpt || (post.content ? post.content.substring(0, 150) + "..." : "No excerpt available.")}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="px-8 pb-8">
+                        <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">
+                              {post.createdAt ? new Date(post.createdAt).toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' }) : "Date TBD"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">5 min read</span>
                           </div>
                         </div>
-                      )}
-                      <div className="absolute top-4 left-4">
-                        <Badge variant="secondary" className="bg-white/90 text-gray-800 font-medium">
-                          News
-                        </Badge>
-                      </div>
-                    </div>
-                    <CardHeader className="p-6">
-                      <CardTitle className="text-xl font-serif font-light line-clamp-2 leading-tight mb-3">
-                        {post.title}
-                      </CardTitle>
-                      <p className="text-gray-600 font-light line-clamp-3 leading-relaxed">
-                        {post.excerpt || post.content.substring(0, 150) + "..."}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="px-6 pb-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "Recent"}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            5 min read
-                          </div>
-                        </div>
-                        <Link
-                          href={`/blog/${post.id}`}
-                          className="inline-flex items-center text-black hover:text-gray-600 transition-colors font-medium text-sm uppercase tracking-wide border-b border-black hover:border-gray-600"
-                        >
-                          Read More
-                        </Link>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))
             ) : (
-              <div className="col-span-full text-center py-20">
-                <div className="max-w-md mx-auto">
-                  <User className="w-20 h-20 text-gray-300 mx-auto mb-6" />
-                  <h3 className="text-3xl font-serif font-light text-gray-600 mb-4">
-                    Coming Soon
+              // Empty state when no posts are available
+              <div className="col-span-full text-center py-24">
+                <div className="max-w-xl mx-auto">
+                  <Rss className="w-24 h-24 text-gray-300 mx-auto mb-8" />
+                  <h3 className="text-4xl font-serif font-bold text-gray-700 mb-6">
+                    Fresh Content is on the Way!
                   </h3>
-                  <p className="text-gray-500 leading-relaxed">
-                    We're preparing exciting content about our artists, exhibitions, and the art world. 
-                    Check back soon for the latest gallery news and insights.
+                  <p className="text-gray-500 text-lg leading-relaxed">
+                    We're currently curating a collection of fascinating articles, artist spotlights, and exhibition highlights. Check back soon to explore our latest stories.
                   </p>
                 </div>
               </div>
             )}
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
