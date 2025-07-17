@@ -30,6 +30,7 @@ import {
     FileImage,
     FileText,
     TrendingUp,
+    UserCheck,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -89,6 +90,12 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
                     href: "/admin/media",
                     icon: FileImage,
                     isActive: location === "/admin/media",
+                },
+                {
+                    title: "Artist Approvals",
+                    href: "/admin/artist-approvals",
+                    icon: UserCheck,
+                    isActive: location === "/admin/artist-approvals",
                 },
                 {
                     title: "Analytics",

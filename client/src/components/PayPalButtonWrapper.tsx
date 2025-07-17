@@ -55,7 +55,7 @@ export default function PayPalButtonWrapper({
     const script = document.createElement("script");
     script.src = `https://www.sandbox.paypal.com/sdk/js?client-id=${
       import.meta.env.PROD
-        ? 'YOUR_LIVE_CLIENT_ID'
+        ? 'ATMsHu7tPo_ITSSp5SZ_nm-21wAx9kWXSiXYQUK2vb2tz7K8ZGZy_eKnEw3PcNifIMZlJZOO2kG03ba0'
         : 'ATMsHu7tPo_ITSSp5SZ_nm-21wAx9kWXSiXYQUK2vb2tz7K8ZGZy_eKnEw3PcNifIMZlJZOO2kG03ba0' // Sandbox client ID
     }&currency=${currency}&components=buttons,funding-eligibility&disable-funding=credit,card,venmo&commit=true&intent=${intent.toLowerCase()}`;
     

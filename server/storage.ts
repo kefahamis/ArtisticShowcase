@@ -2,6 +2,7 @@ import {
   users, artists, artworks, exhibitions, orders, orderItems, 
   newsletterSubscribers, blogPosts, blogShares, mediaFiles, 
   userAccounts, userActivityLogs, dashboardMetrics,
+  artistNotificationPreferences, passwordResetTokens,
   type User, type InsertUser,
   type Artist, type InsertArtist,
   type Artwork, type InsertArtwork, type ArtworkWithArtist,
@@ -14,11 +15,15 @@ import {
   type MediaFile, type InsertMediaFile,
   type UserAccount, type InsertUserAccount,
   type UserActivityLog, type InsertUserActivityLog,
-  type DashboardMetric, type InsertDashboardMetric
+  type DashboardMetric, type InsertDashboardMetric,
+  type ArtistNotificationPreferences,
+  type InsertArtistNotificationPreferences,
+  type PasswordResetToken, type InsertPasswordResetToken
 } from "@shared/schema";
 import { db, pool } from "./db";
 import { eq, desc, and, sql, ilike, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 export interface IStorage {
   // Users
@@ -26,11 +31,13 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User>;
 
   // Artists
   getAllArtists(): Promise<Artist[]>;
   getFeaturedArtists(): Promise<Artist[]>;
   getArtist(id: number): Promise<Artist | undefined>;
+  getArtistBySlug(slug: string): Promise<Artist | undefined>;
   getArtistByUserId(userId: number): Promise<Artist | undefined>;
   createArtist(artist: InsertArtist): Promise<Artist>;
   updateArtist(id: number, artist: Partial<InsertArtist>): Promise<Artist>;
@@ -39,6 +46,11 @@ export interface IStorage {
   // Artist Authentication
   registerArtist(userData: InsertUser, artistData: Omit<InsertArtist, 'userId'>): Promise<{ user: User; artist: Artist }>;
   loginArtist(email: string, password: string): Promise<{ user: User; artist: Artist } | null>;
+  
+  // Artist Approval
+  approveArtist(artistId: number): Promise<Artist>;
+  rejectArtist(artistId: number): Promise<void>;
+  getPendingArtists(): Promise<Artist[]>;
 
   // Artworks
   getAllArtworks(): Promise<ArtworkWithArtist[]>;
@@ -55,10 +67,29 @@ export interface IStorage {
   getArtworksByArtistUser(userId: number): Promise<ArtworkWithArtist[]>;
   getArtistOrdersForArtworks(userId: number): Promise<OrderWithItems[]>;
 
+  // Artist settings operations
+  getArtistNotificationPreferences(artistId: number): Promise<ArtistNotificationPreferences | null>;
+  updateArtistNotificationPreferences(artistId: number, preferences: Partial<InsertArtistNotificationPreferences>): Promise<ArtistNotificationPreferences>;
+  changeArtistPassword(userId: number, currentPassword: string, newPassword: string): Promise<boolean>;
+  closeArtistAccount(userId: number, password: string, reason: string): Promise<boolean>;
+  
+  // 2FA operations
+  setup2FA(userId: number): Promise<{ secret: string; qrCode: string }>;
+  verify2FA(userId: number, token: string): Promise<{ success: boolean; backupCodes?: string[] }>;
+  disable2FA(userId: number, password: string): Promise<boolean>;
+  
+  // Password reset operations
+  createPasswordResetToken(userId: number): Promise<{ token: string; expiresAt: Date }>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | null>;
+  usePasswordResetToken(token: string, newPassword: string): Promise<boolean>;
+  cleanExpiredPasswordResetTokens(): Promise<void>;
+  get2FAStatus(userId: number): Promise<{ enabled: boolean; hasBackupCodes: boolean }>;
+
   // Exhibitions
   getAllExhibitions(): Promise<Exhibition[]>;
   getCurrentExhibition(): Promise<Exhibition | undefined>;
   getExhibition(id: number): Promise<Exhibition | undefined>;
+  getExhibitionBySlug(slug: string): Promise<Exhibition | undefined>;
   createExhibition(exhibition: InsertExhibition): Promise<Exhibition>;
   updateExhibition(id: number, exhibition: Partial<InsertExhibition>): Promise<Exhibition>;
   deleteExhibition(id: number): Promise<void>;
@@ -90,7 +121,8 @@ export interface IStorage {
   getAllBlogShareStats(): Promise<any>;
 
   // Media Files
-  getAllMediaFiles(): Promise<MediaFile[]>;
+  getAllMediaFiles(limit?: number, offset?: number): Promise<MediaFile[]>;
+  getArtistMediaFiles(artistId: number, limit?: number, offset?: number): Promise<MediaFile[]>;
   getMediaFile(id: number): Promise<MediaFile | undefined>;
   createMediaFile(file: InsertMediaFile): Promise<MediaFile>;
   updateMediaFile(id: number, file: Partial<InsertMediaFile>): Promise<MediaFile>;
@@ -114,6 +146,12 @@ export interface IStorage {
   getDashboardMetrics(): Promise<any>;
   createDashboardMetric(metric: InsertDashboardMetric): Promise<DashboardMetric>;
   getRecentActivity(): Promise<any[]>;
+
+  // Favorites
+  addToFavorites(userEmail: string, artworkId: number): Promise<void>;
+  removeFromFavorites(userEmail: string, artworkId: number): Promise<void>;
+  getUserFavorites(userEmail: string): Promise<number[]>;
+  isArtworkInFavorites(userEmail: string, artworkId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -138,6 +176,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: number, updateUser: Partial<InsertUser>): Promise<User> {
+    const [user] = await db.update(users).set(updateUser).where(eq(users.id, id)).returning();
+    return user;
+  }
+
   // Artists
   async getAllArtists(): Promise<Artist[]> {
     return await db.select().from(artists).orderBy(desc(artists.createdAt));
@@ -150,6 +193,19 @@ export class DatabaseStorage implements IStorage {
   async getArtist(id: number): Promise<Artist | undefined> {
     const [artist] = await db.select().from(artists).where(eq(artists.id, id));
     return artist || undefined;
+  }
+
+  async getArtistBySlug(slug: string): Promise<Artist | undefined> {
+    // Create slug from artist name and compare
+    const allArtists = await db.select().from(artists);
+    const artist = allArtists.find(a => 
+      a.name.toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') === slug
+    );
+    return artist;
   }
 
   async getArtistByUserId(userId: number): Promise<Artist | undefined> {
@@ -191,7 +247,39 @@ export class DatabaseStorage implements IStorage {
     const [artist] = await db.select().from(artists).where(eq(artists.userId, user.id));
     if (!artist) return null;
 
+    // Check if artist is approved
+    if (!artist.approved) {
+      throw new Error('ACCOUNT_PENDING_APPROVAL');
+    }
+
     return { user, artist };
+  }
+
+  // Artist Approval Methods
+  async approveArtist(artistId: number): Promise<Artist> {
+    const [artist] = await db.update(artists)
+      .set({ 
+        approved: true, 
+        approvedAt: new Date() 
+      })
+      .where(eq(artists.id, artistId))
+      .returning();
+    return artist;
+  }
+
+  async rejectArtist(artistId: number): Promise<void> {
+    // Delete the artist and associated user account
+    const [artist] = await db.select().from(artists).where(eq(artists.id, artistId));
+    if (artist && artist.userId) {
+      await db.delete(users).where(eq(users.id, artist.userId));
+    }
+    await db.delete(artists).where(eq(artists.id, artistId));
+  }
+
+  async getPendingArtists(): Promise<Artist[]> {
+    return await db.select().from(artists)
+      .where(eq(artists.approved, false))
+      .orderBy(desc(artists.createdAt));
   }
 
   // Artworks
@@ -438,6 +526,19 @@ export class DatabaseStorage implements IStorage {
     return exhibition || undefined;
   }
 
+  async getExhibitionBySlug(slug: string): Promise<Exhibition | undefined> {
+    // Create slug from exhibition title and compare
+    const allExhibitions = await db.select().from(exhibitions);
+    const exhibition = allExhibitions.find(e => 
+      e.title.toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') === slug
+    );
+    return exhibition;
+  }
+
   async createExhibition(insertExhibition: InsertExhibition): Promise<Exhibition> {
     const [exhibition] = await db.insert(exhibitions).values(insertExhibition).returning();
     return exhibition;
@@ -498,11 +599,65 @@ export class DatabaseStorage implements IStorage {
       .set({ 
         stripePaymentId: paymentId,
         paymentMethod,
-        status: "completed"
+        status: "paid"
       })
       .where(eq(orders.id, id))
       .returning();
     return order;
+  }
+
+  async getOrdersByArtist(artistId: number): Promise<OrderWithItems[]> {
+    // Get all orders that contain items from this artist's artworks
+    const artistOrders = await db.select({
+      orderId: orderItems.orderId,
+    })
+    .from(orderItems)
+    .leftJoin(artworks, eq(orderItems.artworkId, artworks.id))
+    .where(eq(artworks.artistId, artistId))
+    .groupBy(orderItems.orderId);
+
+    if (artistOrders.length === 0) {
+      return [];
+    }
+
+    const orderIds = artistOrders.map(o => o.orderId);
+    
+    const allOrders = await db.select({
+      id: orders.id,
+      customerName: orders.customerName,
+      customerEmail: orders.customerEmail,
+      customerPhone: orders.customerPhone,
+      customerAddress: orders.customerAddress,
+      totalAmount: orders.totalAmount,
+      total: orders.total,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      stripePaymentId: orders.stripePaymentId,
+      createdAt: orders.createdAt,
+    })
+      .from(orders)
+      .where(sql`${orders.id} IN (${sql.join(orderIds, sql`, `)})`)
+      .orderBy(desc(orders.createdAt));
+
+    const ordersWithItems = await Promise.all(
+      allOrders.map(async (order) => {
+        const items = await db.select({
+          id: orderItems.id,
+          orderId: orderItems.orderId,
+          artworkId: orderItems.artworkId,
+          quantity: orderItems.quantity,
+          price: orderItems.price,
+          artwork: artworks,
+        })
+        .from(orderItems)
+        .leftJoin(artworks, eq(orderItems.artworkId, artworks.id))
+        .where(eq(orderItems.orderId, order.id));
+
+        return { ...order, items };
+      })
+    );
+
+    return ordersWithItems;
   }
 
   // Newsletter
@@ -607,8 +762,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Media Files
-  async getAllMediaFiles(): Promise<MediaFile[]> {
-    return await db.select().from(mediaFiles).orderBy(desc(mediaFiles.createdAt));
+  async getAllMediaFiles(limit?: number, offset?: number): Promise<MediaFile[]> {
+    const query = db.select().from(mediaFiles).orderBy(desc(mediaFiles.createdAt));
+    
+    if (limit !== undefined) {
+      query.limit(limit);
+    }
+    
+    if (offset !== undefined) {
+      query.offset(offset);
+    }
+    
+    return await query;
+  }
+
+  async getArtistMediaFiles(artistId: number, limit?: number, offset?: number): Promise<MediaFile[]> {
+    // Return files uploaded by this artist OR admin uploads (artistId null)
+    const query = db.select().from(mediaFiles)
+      .where(or(
+        eq(mediaFiles.artistId, artistId),
+        eq(mediaFiles.artistId, null)
+      ))
+      .orderBy(desc(mediaFiles.createdAt));
+    
+    if (limit !== undefined) {
+      query.limit(limit);
+    }
+    
+    if (offset !== undefined) {
+      query.offset(offset);
+    }
+    
+    return await query;
   }
 
   async getMediaFile(id: number): Promise<MediaFile | undefined> {
@@ -781,6 +966,317 @@ export class DatabaseStorage implements IStorage {
     return activities
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10);
+  }
+
+  // Artist settings methods
+  async getArtistNotificationPreferences(artistId: number): Promise<ArtistNotificationPreferences | null> {
+    const [preferences] = await db
+      .select()
+      .from(artistNotificationPreferences)
+      .where(eq(artistNotificationPreferences.artistId, artistId));
+    
+    // If no preferences exist, create default ones
+    if (!preferences) {
+      const defaultPreferences = {
+        artistId,
+        orderNotifications: true,
+        exhibitionNotifications: true,
+        marketingEmails: false,
+        newsLetters: false,
+        profileUpdates: true,
+      };
+      
+      const [newPreferences] = await db
+        .insert(artistNotificationPreferences)
+        .values(defaultPreferences)
+        .returning();
+      
+      return newPreferences;
+    }
+    
+    return preferences;
+  }
+
+  async updateArtistNotificationPreferences(
+    artistId: number, 
+    preferences: Partial<InsertArtistNotificationPreferences>
+  ): Promise<ArtistNotificationPreferences> {
+    const [updatedPreferences] = await db
+      .update(artistNotificationPreferences)
+      .set({
+        ...preferences,
+        updatedAt: new Date(),
+      })
+      .where(eq(artistNotificationPreferences.artistId, artistId))
+      .returning();
+    
+    return updatedPreferences;
+  }
+
+  async changeArtistPassword(userId: number, currentPassword: string, newPassword: string): Promise<boolean> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      return false;
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return false;
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(users)
+      .set({ password: hashedNewPassword })
+      .where(eq(users.id, userId));
+
+    return true;
+  }
+
+  // 2FA Methods
+  async setup2FA(userId: number): Promise<{ secret: string; qrCode: string }> {
+    const speakeasy = await import('speakeasy');
+    const QRCode = await import('qrcode');
+    
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const secret = speakeasy.generateSecret({
+      name: `Gallery (${user.email})`,
+      issuer: 'Talanta Art Gallery',
+      length: 20
+    });
+
+    // Store the secret temporarily (not enabled yet)
+    await db.update(users)
+      .set({ twoFactorSecret: secret.base32 })
+      .where(eq(users.id, userId));
+
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
+
+    return {
+      secret: secret.base32,
+      qrCode
+    };
+  }
+
+  async verify2FA(userId: number, token: string): Promise<{ success: boolean; backupCodes?: string[] }> {
+    const speakeasy = await import('speakeasy');
+    const crypto = await import('crypto');
+    
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user || !user.twoFactorSecret) {
+      return { success: false };
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token,
+      window: 2
+    });
+
+    if (verified) {
+      // Generate backup codes
+      const backupCodes = Array.from({ length: 10 }, () => 
+        crypto.randomBytes(4).toString('hex').toUpperCase()
+      );
+
+      await db.update(users)
+        .set({
+          twoFactorEnabled: true,
+          backupCodes
+        })
+        .where(eq(users.id, userId));
+
+      return { success: true, backupCodes };
+    }
+
+    return { success: false };
+  }
+
+  async disable2FA(userId: number, password: string): Promise<boolean> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      return false;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return false;
+    }
+
+    await db.update(users)
+      .set({
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        backupCodes: null
+      })
+      .where(eq(users.id, userId));
+
+    return true;
+  }
+
+  async get2FAStatus(userId: number): Promise<{ enabled: boolean; hasBackupCodes: boolean }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      return { enabled: false, hasBackupCodes: false };
+    }
+
+    return {
+      enabled: user.twoFactorEnabled || false,
+      hasBackupCodes: (user.backupCodes?.length || 0) > 0
+    };
+  }
+
+  async closeArtistAccount(userId: number, password: string, reason: string): Promise<boolean> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      return false;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return false;
+    }
+
+    // Create activity log for account closure
+    await db.insert(userActivityLogs).values({
+      userId,
+      action: 'account_closed',
+      description: `Account closed. Reason: ${reason}`,
+      ipAddress: null,
+      userAgent: null,
+    });
+
+    // Deactivate user account instead of deleting
+    await db
+      .update(users)
+      .set({ 
+        email: `deleted_${Date.now()}_${user.email}`,
+        password: 'account_closed',
+      })
+      .where(eq(users.id, userId));
+
+    return true;
+  }
+
+  // Password Reset Methods
+  async createPasswordResetToken(userId: number): Promise<{ token: string; expiresAt: Date }> {
+    // Generate a secure random token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    await db.insert(passwordResetTokens).values({
+      userId,
+      token,
+      expiresAt,
+      used: false
+    });
+
+    return { token, expiresAt };
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | null> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.token, token),
+          eq(passwordResetTokens.used, false)
+        )
+      );
+
+    if (!resetToken) {
+      console.log(`No reset token found for token: ${token}`);
+      return null;
+    }
+
+    // Check if token has expired
+    const now = new Date();
+    if (resetToken.expiresAt < now) {
+      console.log(`Reset token expired. Expires: ${resetToken.expiresAt}, Now: ${now}`);
+      return null;
+    }
+
+    console.log(`Valid reset token found for token: ${token}`);
+    return resetToken;
+  }
+
+  async usePasswordResetToken(token: string, newPassword: string): Promise<boolean> {
+    const resetToken = await this.getPasswordResetToken(token);
+    
+    if (!resetToken) {
+      return false;
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    try {
+      await db.transaction(async (tx) => {
+        // Update the user's password
+        await tx
+          .update(users)
+          .set({ password: hashedPassword })
+          .where(eq(users.id, resetToken.userId));
+
+        // Mark the token as used
+        await tx
+          .update(passwordResetTokens)
+          .set({ used: true })
+          .where(eq(passwordResetTokens.token, token));
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return false;
+    }
+  }
+
+  async cleanExpiredPasswordResetTokens(): Promise<void> {
+    await db
+      .delete(passwordResetTokens)
+      .where(sql`${passwordResetTokens.expiresAt} < NOW() OR ${passwordResetTokens.used} = true`);
+  }
+
+  // Favorites implementation
+  async addToFavorites(userEmail: string, artworkId: number): Promise<void> {
+    await db.execute(sql`
+      INSERT INTO favorites (user_email, artwork_id) 
+      VALUES (${userEmail}, ${artworkId}) 
+      ON CONFLICT (user_email, artwork_id) DO NOTHING
+    `);
+  }
+
+  async removeFromFavorites(userEmail: string, artworkId: number): Promise<void> {
+    await db.execute(sql`
+      DELETE FROM favorites 
+      WHERE user_email = ${userEmail} AND artwork_id = ${artworkId}
+    `);
+  }
+
+  async getUserFavorites(userEmail: string): Promise<number[]> {
+    const result = await db.execute(sql`
+      SELECT artwork_id FROM favorites WHERE user_email = ${userEmail}
+    `);
+    return result.rows.map((row: any) => row.artwork_id);
+  }
+
+  async isArtworkInFavorites(userEmail: string, artworkId: number): Promise<boolean> {
+    const result = await db.execute(sql`
+      SELECT 1 FROM favorites 
+      WHERE user_email = ${userEmail} AND artwork_id = ${artworkId}
+    `);
+    return result.rows.length > 0;
   }
 }
 

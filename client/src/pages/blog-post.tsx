@@ -23,7 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Link } from "wouter";
-import { type BlogPost } from "@shared/schema-old";
+import { type BlogPost } from "@shared/schema";
 
 export default function BlogPostPage() {
   const [, params] = useRoute("/blog/:id");

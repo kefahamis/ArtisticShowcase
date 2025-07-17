@@ -3,18 +3,94 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingCart, Eye } from "lucide-react";
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
-import type { ArtworkWithArtist } from "@shared/schema-old";
-import ImageZoom from "./image-zoom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import type { ArtworkWithArtist } from "@shared/schema";
+import ArtworkPreviewDialog from "./artwork-preview-dialog";
 
 interface ArtworkCardProps {
   artwork: ArtworkWithArtist;
+  userEmail?: string; // Optional for guest users
 }
 
-export default function ArtworkCard({ artwork }: ArtworkCardProps) {
+export default function ArtworkCard({ artwork, userEmail = "guest@example.com" }: ArtworkCardProps) {
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  // Check if artwork is in favorites
+  const { data: favoriteStatus } = useQuery({
+    queryKey: ["/api/favorites", userEmail, artwork.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/favorites/${encodeURIComponent(userEmail)}/${artwork.id}`);
+      if (!response.ok) return { isFavorite: false };
+      return response.json();
+    },
+    enabled: !!userEmail && userEmail !== "guest@example.com",
+  });
+
+  // Update local state when favorite status changes
+  useEffect(() => {
+    if (favoriteStatus) {
+      setIsFavorite(favoriteStatus.isFavorite);
+    }
+  }, [favoriteStatus]);
+
+  // Add to favorites mutation
+  const addToFavoritesMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/favorites", {
+        userEmail,
+        artworkId: artwork.id,
+      });
+    },
+    onSuccess: () => {
+      setIsFavorite(true);
+      toast({
+        title: "Added to Favorites",
+        description: `"${artwork.title}" has been added to your favorites.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/favorites", userEmail] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add to favorites",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Remove from favorites mutation
+  const removeFromFavoritesMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/favorites", {
+        userEmail,
+        artworkId: artwork.id,
+      });
+    },
+    onSuccess: () => {
+      setIsFavorite(false);
+      toast({
+        title: "Removed from Favorites",
+        description: `"${artwork.title}" has been removed from your favorites.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/favorites", userEmail] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove from favorites",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -34,6 +110,34 @@ export default function ArtworkCard({ artwork }: ArtworkCardProps) {
       title: "Added to Cart",
       description: `"${artwork.title}" has been added to your cart.`,
     });
+  };
+
+  const handlePreview = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPreviewOpen(true);
+  };
+
+  const handleToggleFavorite = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (userEmail === "guest@example.com") {
+      toast({
+        title: "Login Required",
+        description: "Please login to add items to favorites.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isFavorite) {
+      removeFromFavoritesMutation.mutate();
+    } else {
+      addToFavoritesMutation.mutate();
+    }
   };
 
   const formatPrice = (price: string) => {
@@ -59,10 +163,7 @@ export default function ArtworkCard({ artwork }: ArtworkCardProps) {
                   size="sm"
                   variant="secondary"
                   className="bg-white/90 text-black hover:bg-white"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
+                  onClick={handlePreview}
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
@@ -70,13 +171,15 @@ export default function ArtworkCard({ artwork }: ArtworkCardProps) {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="bg-white/90 text-black hover:bg-white"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
+                  className={`bg-white/90 hover:bg-white ${
+                    isFavorite 
+                      ? "text-red-600" 
+                      : "text-black"
+                  }`}
+                  onClick={handleToggleFavorite}
+                  disabled={addToFavoritesMutation.isPending || removeFromFavoritesMutation.isPending}
                 >
-                  <Heart className="w-4 h-4" />
+                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
                 </Button>
                 
                 <Button
@@ -113,7 +216,7 @@ export default function ArtworkCard({ artwork }: ArtworkCardProps) {
               {artwork.title}
             </h3>
             <p className="text-sm text-gray-600 font-light tracking-wide">
-              by <span className="font-medium">{artwork.artist.name}</span>
+              by <span className="font-medium">{artwork.artist?.name || "Unknown Artist"}</span>
             </p>
           </div>
 
@@ -143,6 +246,15 @@ export default function ArtworkCard({ artwork }: ArtworkCardProps) {
           </Button>
         </CardContent>
       </Card>
+      
+      {/* Preview Dialog */}
+      <ArtworkPreviewDialog
+        artwork={artwork}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        isFavorite={isFavorite}
+        onToggleFavorite={handleToggleFavorite}
+      />
     </Link>
   );
 }

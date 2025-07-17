@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Clock, User, ArrowRight, Rss, Loader2 } from "lucide-react";
-import { type BlogPost } from "@shared/schema-old";
+import { type BlogPost } from "@shared/schema";
 
 export default function Blog() {
   const { data: posts, isLoading } = useQuery({

@@ -115,14 +115,14 @@ export default function Navigation() {
               )}
               <Link href="/artist/login">
                 <Button variant="ghost" size="sm" className="text-gray-700 hover:text-black">
-                  Artist Portal
-                </Button>
-              </Link>
-              <Link href="/admin">
-                <Button variant="ghost" size="sm" className="text-gray-700 hover:text-black">
                   <User className="w-5 h-5" />
                 </Button>
               </Link>
+              {/* <Link href="/admin">
+                <Button variant="ghost" size="sm" className="text-gray-700 hover:text-black">
+                  <User className="w-5 h-5" />
+                </Button>
+              </Link> */}
 
               <Button
                 variant="ghost"

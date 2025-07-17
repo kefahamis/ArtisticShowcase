@@ -200,11 +200,7 @@ export default function Footer() {
                     Terms of Service
                   </Link>
                 </li>
-                <li>
-                  <Link href="/admin" className="text-gray-500 hover:text-white text-sm font-light transition-colors duration-200">
-                    Admin Login
-                  </Link>
-                </li>
+                
               </ul>
             </nav>
           </div>

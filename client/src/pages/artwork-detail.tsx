@@ -9,7 +9,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
 import SeoHead from "@/components/seo-head";
 import ImageZoom from "@/components/image-zoom";
-import type { ArtworkWithArtist } from "@shared/schema-old";
+import type { ArtworkWithArtist } from "@shared/schema";
 
 export default function ArtworkDetail() {
   const [, params] = useRoute("/artworks/:id");

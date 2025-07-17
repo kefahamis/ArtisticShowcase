@@ -180,8 +180,8 @@ export default function AdminOrders() {
     cancelled: Array.isArray(orders) ? orders.filter((o: any) => o.status === "cancelled").length : 0,
     totalRevenue: Array.isArray(orders)
       ? orders
-          .filter((o: any) => o.status === "completed")
-          .reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || "0"), 0)
+        .filter((o: any) => o.status === "completed")
+        .reduce((sum: number, o: any) => sum + parseFloat(o.totalAmount || "0"), 0)
       : 0,
   };
 
@@ -435,7 +435,10 @@ export default function AdminOrders() {
                     {selectedOrder.customerAddress && (
                       <div className="flex items-start gap-3">
                         <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0 mt-1" />
-                        <address className="not-italic leading-relaxed">{selectedOrder.customerAddress}</address>
+                        {typeof selectedOrder.customerAddress === 'object' && selectedOrder.customerAddress !== null
+                          ? Object.values(selectedOrder.customerAddress).join(', ')
+                          : selectedOrder.customerAddress
+                        }
                       </div>
                     )}
                     {selectedOrder.customerPhone && (

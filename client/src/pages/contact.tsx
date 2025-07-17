@@ -28,13 +28,45 @@ export default function Contact() {
     message: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Message Sent!",
-      description: "Thank you for your inquiry. We'll get back to you within 24 hours.",
-    });
-    setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Message Sent!",
+          description: result.message || "Thank you for your inquiry. We'll get back to you within 24 hours.",
+        });
+        setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "There was an issue sending your message. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "There was an issue sending your message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -128,9 +160,9 @@ export default function Contact() {
                       />
                     </div>
 
-                    <Button type="submit" size="lg" className="w-full bg-gray-900 text-white hover:bg-gray-800 transition-all transform hover:scale-[1.01] h-14 text-lg rounded-xl font-bold">
+                    <Button type="submit" size="lg" className="w-full bg-gray-900 text-white hover:bg-gray-800 transition-all transform hover:scale-[1.01] h-14 text-lg rounded-xl font-bold" disabled={isSubmitting}>
                       <MailCheck className="mr-2 w-5 h-5" />
-                      Send Message
+                      {isSubmitting ? "Sending..." : "Send Message"}
                     </Button>
                   </form>
                 </CardContent>

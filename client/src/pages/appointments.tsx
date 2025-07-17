@@ -63,26 +63,40 @@ export default function Appointments() {
     setIsSubmitting(true);
 
     try {
-      // Simulate appointment booking (would integrate with actual booking system)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      toast({
-        title: "Appointment Request Submitted",
-        description: "We'll contact you within 24 hours to confirm your appointment details.",
-        action: <CheckCircle className="text-green-500" />,
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
       });
 
-      // Reset form
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        appointmentType: "",
-        preferredDate: "",
-        preferredTime: "",
-        message: ""
-      });
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Appointment Request Submitted",
+          description: result.message || "We'll contact you within 24 hours to confirm your appointment.",
+        });
+        
+        // Reset form
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: "",
+          appointmentType: "",
+          preferredDate: "",
+          preferredTime: "",
+          message: ""
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "There was an issue submitting your appointment request. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -379,9 +393,9 @@ export default function Appointments() {
                     </div>
                   ) : (
                     <div className="space-y-2 text-lg text-gray-700">
-                      <p className="font-medium">Contemporary Gallery</p>
+                      <p className="font-medium">Talanta Art Gallery</p>
                       <p>123 Art District Avenue</p>
-                      <p>New York, NY 10001</p>
+                      <p>Nairobi, Kenya</p>
                       <a href="#" className="flex items-center text-blue-600 hover:underline mt-4 font-semibold">
                         <ArrowRight className="w-5 h-5 mr-1" />
                         Get Directions

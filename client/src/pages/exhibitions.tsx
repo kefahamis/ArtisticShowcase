@@ -1,86 +1,152 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Clock, MapPin, Sparkles, XCircle, GalleryHorizontal } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton"; // Assuming Skeleton is correctly imported or defined
+import { CalendarDays, Clock, MapPin, Sparkles, XCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import type { Exhibition } from "@shared/schema";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.talantaart.com";
 
 export default function Exhibitions() {
   const [selectedLocation, setSelectedLocation] = useState("ALL");
+  const { toast } = useToast();
 
-  const { data: exhibitions = [], isLoading } = useQuery({
-    queryKey: ["/api/exhibitions"],
-  });
-    // Create slug from title
-    const createSlug = (title: string) => {
-      return title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .trim();
+  // Authenticated request helper
+  const authenticatedRequest = useCallback(async <T,>(method: string, url: string): Promise<T> => {
+    const token = localStorage.getItem("admin_token");
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
     };
-    // Transform database exhibitions to display format
-    const transformedExhibitions = useMemo(() => {
-      if (!exhibitions || exhibitions.length === 0) return [];
-      
-      return exhibitions.map((exhibition: Exhibition) => ({
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method,
+        headers,
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("admin_token");
+        console.error(`Authentication Error: ${response.status} - Invalid or expired token.`);
+        throw new Error("Authentication failed. Please log in again.");
+      }
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: "Unknown error" }));
+        console.error(`API error for ${method} ${url}:`, errorBody);
+        throw new Error(errorBody.message || `API request failed with status: ${response.status}`);
+      }
+      return (await response.json()) as T;
+    } catch (error: any) {
+      console.error(`Fetch operation failed for ${method} ${url}:`, error);
+      throw error;
+    }
+  }, []);
+
+  // Fetch exhibitions
+  const {
+    data: exhibitions = [],
+    isLoading,
+    error,
+  } = useQuery<Exhibition[]>({
+    queryKey: ["exhibitions"],
+    queryFn: () => authenticatedRequest("GET", "/api/exhibitions"),
+    staleTime: 60 * 1000, // 1 minute
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Error handling
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Failed to load exhibitions",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+      console.error("Exhibitions fetch error:", error);
+    }
+  }, [error, toast]);
+
+  // Create slug from title
+  const createSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .trim();
+  };
+
+  // Handle image URLs with fallback
+  const getImageUrl = (url?: string | null) => {
+    if (!url) return `${API_BASE_URL}/uploads/placeholder.jpg`;
+    return url.startsWith("http://") || url.startsWith("https://") ? url : `${API_BASE_URL}${url}`;
+  };
+
+  // Transform database exhibitions to display format
+  const transformedExhibitions = useMemo(() => {
+    if (!exhibitions || exhibitions.length === 0) return [];
+
+    const now = new Date();
+    return exhibitions.map((exhibition: Exhibition) => {
+      const startDate = new Date(exhibition.startDate);
+      const endDate = new Date(exhibition.endDate);
+      const category = exhibition.current
+        ? "current"
+        : endDate < now
+        ? "past"
+        : "upcoming";
+
+      return {
         id: exhibition.id,
         slug: createSlug(exhibition.title),
         title: exhibition.title,
         subtitle: exhibition.subtitle || "",
-        location: "GALLERY", // Default location, can be extracted from title if needed
-        date: new Date(exhibition.startDate).toLocaleDateString('en-US', { 
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
+        location: exhibition.location?.toUpperCase() || "NAIROBI",
+        venue: exhibition.venue || "",
+        date: startDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
         }).toUpperCase(),
-        endDate: new Date(exhibition.endDate).toLocaleDateString('en-US', { 
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
+        endDate: endDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
         }).toUpperCase(),
         time: exhibition.openingReception || "",
-        image: exhibition.imageUrl || "/api/placeholder/400/300",
+        image: getImageUrl(exhibition.imageUrl),
         featured: exhibition.current || false,
-        category: exhibition.current ? "current" : "upcoming",
-        description: exhibition.description
-      }));
-    }, [exhibitions]);
+        category,
+        description: exhibition.description || "",
+      };
+    });
+  }, [exhibitions]);
 
-  // Gallery locations - standardized to match exhibitionData
-  const locations = useMemo(() => [
-    "ALL",
-    "COSTA MESA",
-    "LA JOLLA",
-    "LAS VEGAS",
-    "NEW ORLEANS",
-    "NEW YORK",
-    "SAN FRANCISCO",
-    "SCHAUMBURG"
-  ], []);
+  // Gallery locations
+  const locations = ["ALL", "NAIROBI", "MOMBASA", "KISUMU", "NAKURU", "ELDORET", "KAKAMEGA"];
 
-    // Filter exhibitions by location
-    const filteredExhibitions = useMemo(() => {
-      if (selectedLocation === "ALL") {
-        return transformedExhibitions;
-      }
-      return transformedExhibitions.filter(exhibition => 
-        exhibition.location.includes(selectedLocation)
-      );
-    }, [selectedLocation, transformedExhibitions]);
-  
+  // Filter exhibitions by location
+  const filteredExhibitions = useMemo(() => {
+    if (selectedLocation === "ALL") {
+      return transformedExhibitions;
+    }
+    return transformedExhibitions.filter((exhibition) =>
+      exhibition.location.toUpperCase() === selectedLocation.toUpperCase()
+    );
+  }, [selectedLocation, transformedExhibitions]);
 
-  // Combine and sort by category: current, upcoming, then past
+  // Sort by category: current, upcoming, then past
   const sortedExhibitions = useMemo(() => {
-    const current = filteredExhibitions.filter(e => e.category === "current");
-    const upcoming = filteredExhibitions.filter(e => e.category === "upcoming");
-    const past = filteredExhibitions.filter(e => e.category === "past");
+    const current = filteredExhibitions.filter((e) => e.category === "current");
+    const upcoming = filteredExhibitions.filter((e) => e.category === "upcoming");
+    const past = filteredExhibitions.filter((e) => e.category === "past");
     return [...current, ...upcoming, ...past];
   }, [filteredExhibitions]);
-
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 antialiased font-sans">
@@ -142,6 +208,18 @@ export default function Exhibitions() {
                 </Card>
               ))}
             </div>
+          ) : error ? (
+            <div className="text-center py-24">
+              <div className="max-w-xl mx-auto">
+                <XCircle className="w-24 h-24 text-red-300 mx-auto mb-8" />
+                <h3 className="text-4xl font-serif font-bold text-gray-700 mb-6">
+                  Error Loading Exhibitions
+                </h3>
+                <p className="text-gray-500 text-lg leading-relaxed">
+                  Unable to load exhibitions at this time. Please check your connection or try again later.
+                </p>
+              </div>
+            </div>
           ) : sortedExhibitions.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {sortedExhibitions.map((exhibition) => (
@@ -152,10 +230,11 @@ export default function Exhibitions() {
                         src={exhibition.image}
                         alt={exhibition.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        onError={(e) => { e.currentTarget.src = "https://placehold.co/600x450/E0E0E0/333333?text=Image+Error"; }}
+                        onError={(e) => {
+                          console.error(`Failed to load image: ${exhibition.image}`);
+                          e.currentTarget.src = `${API_BASE_URL}/uploads/placeholder.jpg`;
+                        }}
                       />
-
-                      {/* Featured Overlay or Category Badge */}
                       {exhibition.featured ? (
                         <div className="absolute inset-0 bg-black/60 flex flex-col items-start justify-end p-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <Sparkles className="w-12 h-12 text-yellow-400 mb-4 drop-shadow-lg" />
@@ -173,7 +252,9 @@ export default function Exhibitions() {
                           <div className="flex items-center gap-4 text-gray-100 text-base font-semibold mt-1">
                             <CalendarDays className="w-5 h-5" /> {exhibition.date}
                             {exhibition.time && (
-                                <><Clock className="w-5 h-5 ml-4" /> {exhibition.time}</>
+                              <>
+                                <Clock className="w-5 h-5 ml-4" /> {exhibition.time}
+                              </>
                             )}
                           </div>
                         </div>
@@ -185,7 +266,6 @@ export default function Exhibitions() {
                         </div>
                       )}
                     </div>
-
                     <CardHeader className="p-8">
                       <CardTitle className="text-2xl font-serif font-bold line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
                         {exhibition.title}
@@ -217,7 +297,6 @@ export default function Exhibitions() {
               ))}
             </div>
           ) : (
-            // Empty state when no exhibitions are found for the selected filter
             <div className="text-center py-24">
               <div className="max-w-xl mx-auto">
                 <XCircle className="w-24 h-24 text-gray-300 mx-auto mb-8" />

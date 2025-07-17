@@ -133,7 +133,7 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-16">
+      <div className="max-w-8xl mx-auto px-4 py-16">
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Login Form */}
           <div>

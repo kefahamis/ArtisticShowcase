@@ -24,6 +24,8 @@ import Checkout from "@/pages/checkout";
 import Admin from "@/pages/admin";
 import ArtistRegister from "@/pages/artist-register";
 import ArtistLogin from "@/pages/artist-login";
+import ArtistForgotPassword from "@/pages/artist-forgot-password";
+import ArtistResetPassword from "@/pages/artist-reset-password";
 import ArtistDashboard from "@/pages/artist-dashboard";
 import ArtistProfile from "@/pages/artist-profile";
 import ArtistArtworks from "@/pages/artist-artworks";
@@ -36,11 +38,15 @@ import AdminOrders from "@/pages/admin-orders";
 import AdminAnalytics from "@/pages/admin-analytics";
 import AdminMedia from "@/pages/admin-media";
 import AdminUsers from "@/pages/admin-users";
+import AdminArtistApprovals from "@/pages/admin-artist-approvals";
+import TermsOfService from "@/pages/terms-of-service";
+import PrivacyPolicy from "@/pages/privacy-policy";
 import AdminBlog from "@/pages/admin-blog";
 import AdminMediaLibrary from "@/pages/admin-media";
 import AdminBlogAnalytics from "@/pages/admin-blog-analytics";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
+import ArtistSettings from "@/pages/artist-settings";
 import AdminExhibitions from "@/pages/admin-exhibitions";
 
 function Router() {
@@ -65,20 +71,27 @@ function Router() {
       <Route path="/admin/orders" component={AdminOrders} />
       <Route path="/admin/analytics" component={AdminAnalytics} />
       <Route path="/admin/blog" component={AdminBlog} />
+      <Route path="/appointments" component={Appointments} />
+      <Route path="/terms-of-service" component={TermsOfService} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/admin/blog/analytics" component={AdminBlogAnalytics} />
       <Route path="/admin/media" component={AdminMedia} />
       <Route path="/admin/media" component={AdminMedia} />
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/exhibitions" component={AdminExhibitions} />
+      <Route path="/admin/artist-approvals" component={AdminArtistApprovals} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/login" component={Login} />
       <Route path="/artist/register" component={ArtistRegister} />
       <Route path="/artist/login" component={ArtistLogin} />
+      <Route path="/artist/forgot-password" component={ArtistForgotPassword} />
+      <Route path="/artist/reset-password" component={ArtistResetPassword} />
       <Route path="/artist/dashboard" component={ArtistDashboard} />
       <Route path="/artist/profile" component={ArtistProfile} />
       <Route path="/artist/artworks" component={ArtistArtworks} />
       <Route path="/artist/orders" component={ArtistOrders} />
       <Route path="/artist/media" component={ArtistMedia} />
+      <Route path="/artist/settings" component={ArtistSettings} />
       <Route component={NotFound} />
     </Switch>
   );

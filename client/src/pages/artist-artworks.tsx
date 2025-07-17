@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { ImageUpload } from "@/components/image-upload";
 import { 
   Palette, Plus, Edit, Trash2, Eye, Search, Filter,
   Grid, List, SortAsc, SortDesc
@@ -549,9 +550,14 @@ export default function ArtistArtworks() {
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Image URL</FormLabel>
+                    <FormLabel>Artwork Image</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com/image.jpg" {...field} />
+                      <ImageUpload
+                        label=""
+                        value={field.value}
+                        onChange={field.onChange}
+                        context="artist"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

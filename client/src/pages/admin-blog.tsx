@@ -12,11 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { insertBlogPostSchema, type BlogPost } from "@shared/schema-old";
+import { insertBlogPostSchema, type BlogPost } from "@shared/schema";
 import AdminSidebar from "@/components/admin-sidebar";
 import WysiwygEditor from "@/components/wsiwyg-editor";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import ImageUpload from "@/components/image-upload";
+import { ImageUpload } from "@/components/image-upload";
 import { usePagination } from "@/hooks/use-pagination";
 import {
   Pagination,
@@ -380,11 +380,14 @@ export default function AdminBlog() {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Featured Image</FormLabel>
-                              <FormControl>
-                                <ImageUpload onImageSelect={field.onChange} currentImage={field.value} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
+
+                            <ImageUpload
+                              label=""
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                            <FormMessage />
+                          </FormItem>
                           )}
                         />
                         <FormField

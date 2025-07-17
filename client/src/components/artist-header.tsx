@@ -32,7 +32,7 @@ export default function ArtistHeader({ title = "Dashboard", subtitle, actions }:
     };
 
     return (
-        <header className="sticky top-0 bg-[#532b8a] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 bg-neutral-900/80 backdrop-blur-lg supports-[backdrop-filter]:bg-[]-900/60">
+        <header className="sticky top-0 bg-[#172554] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 backdrop-blur-lg supports-[backdrop-filter]:bg-[]-900/60">
             <div className="flex items-center justify-between">
                 {/* Left side - Title */}
                 <div className="flex items-center space-x-4">
@@ -57,24 +57,6 @@ export default function ArtistHeader({ title = "Dashboard", subtitle, actions }:
 
                 {/* Right side - Actions and User */}
                 <div className="flex items-center space-x-4">
-                    {/* Quick Actions */}
-                    {actions && (
-                        <div className="hidden md:flex items-center space-x-2">
-                            {actions}
-                        </div>
-                    )}
-
-                    {/* Notifications */}
-                    <Button variant="ghost" size="sm" className="relative">
-                        <Bell className="w-5 h-5 text-white" />
-                        <Badge className="absolute -top-1 -right-1 w-2 h-2 p-0 bg-red-500" />
-                    </Button>
-
-                    {/* Settings */}
-                    <Button variant="ghost" size="sm">
-                        <Settings className="w-5 h-5 text-white" />
-                    </Button>
-
                     {/* User Menu */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -85,7 +67,7 @@ export default function ArtistHeader({ title = "Dashboard", subtitle, actions }:
                                     </span>
                                 </div>
                                 <div className="hidden md:block text-left">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    <p className="text-sm font-medium text-gray-900 text-white">
                                         {artist?.name || user?.username || 'Artist'}
                                     </p>
                                     <p className="text-xs text-white dark:text-gray-400">
@@ -101,14 +83,11 @@ export default function ArtistHeader({ title = "Dashboard", subtitle, actions }:
                                 <User className="mr-2 h-4 w-4" />
                                 <span>Profile</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setLocation("/artist/settings")}>
                                 <Settings className="mr-2 h-4 w-4" />
                                 <span>Settings</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                                <HelpCircle className="mr-2 h-4 w-4" />
-                                <span>Help & Support</span>
-                            </DropdownMenuItem>
+
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                                 <span>Log out</span>

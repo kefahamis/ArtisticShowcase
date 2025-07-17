@@ -10,6 +10,13 @@ export default function ExhibitionDetail() {
 
   const { data: exhibition, isLoading } = useQuery({
     queryKey: ["/api/exhibitions", slug],
+    queryFn: async () => {
+      const response = await fetch(`/api/exhibitions/slug/${slug}`);
+      if (!response.ok) {
+        throw new Error('Exhibition not found');
+      }
+      return response.json();
+    }
   });
 
   // Mock exhibition data for demonstration
@@ -94,7 +101,24 @@ During this special event, guests will have the rare opportunity to meet Philipp
     }
   };
 
-  const currentExhibition = exhibitionData[slug as keyof typeof exhibitionData] || exhibitionData["philippe-bertho-in-san-francisco-ca"];
+  // Use real exhibition data if available, otherwise fallback to mock data
+  const currentExhibition = exhibition ? {
+    ...exhibition,
+    // Transform database exhibition to match display format
+    date: new Date(exhibition.startDate).toLocaleDateString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric'
+    }).toUpperCase(),
+    endDate: new Date(exhibition.endDate).toLocaleDateString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric'
+    }).toUpperCase(),
+    time: exhibition.openingReception || "6 - 8 PM",
+    image: exhibition.imageUrl || "/api/placeholder/800/600",
+    featured: exhibition.current || false,
+    address: `${exhibition.venue || "Talanta Art Gallery"}, ${exhibition.location || "Nairobi"}`,
+    galleryImages: ["/api/placeholder/400/300", "/api/placeholder/400/300"],
+    rsvpRequired: false,
+    ticketPrice: "Free"
+  } : exhibitionData[slug as keyof typeof exhibitionData] || exhibitionData["philippe-bertho-in-san-francisco-ca"];
 
   if (isLoading) {
     return (
@@ -138,7 +162,7 @@ During this special event, guests will have the rare opportunity to meet Philipp
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         </div>
-        
+
         {/* Exhibition Info Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
           <div className="max-w-4xl mx-auto">
@@ -155,7 +179,7 @@ During this special event, guests will have the rare opportunity to meet Philipp
                 {currentExhibition.subtitle}
               </p>
             )}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
@@ -166,7 +190,7 @@ During this special event, guests will have the rare opportunity to meet Philipp
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 <div>
@@ -174,7 +198,7 @@ During this special event, guests will have the rare opportunity to meet Philipp
                   <div className="text-gray-300">Gallery Hours</div>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
                 <div>
@@ -243,12 +267,12 @@ During this special event, guests will have the rare opportunity to meet Philipp
                   <div className="font-medium text-gray-900">Venue</div>
                   <div className="text-gray-600">{currentExhibition.venue}</div>
                 </div>
-                
+
                 <div>
                   <div className="font-medium text-gray-900">Address</div>
                   <div className="text-gray-600">{currentExhibition.address}</div>
                 </div>
-                
+
                 <div>
                   <div className="font-medium text-gray-900">Dates</div>
                   <div className="text-gray-600">
@@ -256,17 +280,17 @@ During this special event, guests will have the rare opportunity to meet Philipp
                     {currentExhibition.endDate && ` - ${currentExhibition.endDate}`}
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="font-medium text-gray-900">Time</div>
                   <div className="text-gray-600">{currentExhibition.time}</div>
                 </div>
-                
+
                 <div>
                   <div className="font-medium text-gray-900">Admission</div>
                   <div className="text-gray-600">{currentExhibition.ticketPrice}</div>
                 </div>
-                
+
                 {currentExhibition.rsvpRequired && (
                   <div>
                     <div className="font-medium text-gray-900">RSVP</div>
@@ -308,7 +332,7 @@ During this special event, guests will have the rare opportunity to meet Philipp
                   RSVP for Event
                 </Button>
               )}
-              
+
               <Button variant="outline" className="w-full gap-2">
                 <Share2 className="w-4 h-4" />
                 Share Exhibition

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,31 +15,102 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { apiRequest } from "@/lib/queryClient";
 import AdminSidebar from "@/components/admin-sidebar";
+import { ImageUpload } from "@/components/image-upload";
 import type { Exhibition, InsertExhibition } from "@shared/schema";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.talantaart.com";
 
 const exhibitionFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   subtitle: z.string().optional(),
   description: z.string().min(1, "Description is required"),
-  imageUrl: z.string().url("Please enter a valid image URL").optional(),
+  imageUrl: z.string().transform(val => val === "" ? undefined : val).optional(),
+  location: z.string().optional(),
+  venue: z.string().optional(),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().min(1, "End date is required"),
-  openingReception: z.string().optional(),
+  openingReception: z.string().transform(val => val === "" ? undefined : val).optional(),
   current: z.boolean().default(false),
 });
 
 type ExhibitionFormData = z.infer<typeof exhibitionFormSchema>;
 
 export default function AdminExhibitions() {
+  const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExhibition, setEditingExhibition] = useState<Exhibition | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: exhibitions, isLoading } = useQuery<Exhibition[]>({
+  // Check authentication
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
+  // Helper to make authenticated requests
+  const authenticatedRequest = async (method: string, url: string, data?: any) => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      throw new Error("No authentication token");
+    }
+
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("admin_token");
+      setLocation("/login");
+      throw new Error("Authentication failed");
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Request failed" }));
+      throw new Error(error.message || "Request failed");
+    }
+
+    return response.status === 204 ? null : response.json();
+  };
+
+  const { data: exhibitions, isLoading, error, isError } = useQuery<Exhibition[]>({
     queryKey: ["/api/exhibitions"],
+    queryFn: async () => {
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        throw new Error("No authentication token");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/exhibitions`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("admin_token");
+        setLocation("/login");
+        throw new Error("Authentication failed");
+      }
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Request failed" }));
+        throw new Error(error.message || "Request failed");
+      }
+
+      return response.json();
+    },
+    retry: 2,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const form = useForm<ExhibitionFormData>({
@@ -47,7 +119,9 @@ export default function AdminExhibitions() {
       title: "",
       subtitle: "",
       description: "",
-      imageUrl: "",
+      imageUrl: undefined, // Changed to undefined to match schema
+      location: "",
+      venue: "",
       startDate: "",
       endDate: "",
       openingReception: "",
@@ -57,13 +131,14 @@ export default function AdminExhibitions() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ExhibitionFormData) => {
-      const exhibitionData: InsertExhibition = {
+      const exhibitionData = {
         ...data,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        openingReception: data.openingReception ? data.openingReception : null,
+        imageUrl: data.imageUrl || null,
+        location: data.location || null,
+        venue: data.venue || null,
+        openingReception: data.openingReception || null,
       };
-      return await apiRequest("POST", "/api/exhibitions", exhibitionData);
+      return await authenticatedRequest("POST", "/api/exhibitions", exhibitionData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exhibitions"] });
@@ -86,13 +161,14 @@ export default function AdminExhibitions() {
   const updateMutation = useMutation({
     mutationFn: async (data: ExhibitionFormData) => {
       if (!editingExhibition) return;
-      const exhibitionData: Partial<InsertExhibition> = {
+      const exhibitionData = {
         ...data,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        openingReception: data.openingReception ? data.openingReception : null,
+        imageUrl: data.imageUrl || null,
+        location: data.location || null,
+        venue: data.venue || null,
+        openingReception: data.openingReception || null,
       };
-      return await apiRequest("PATCH", `/api/exhibitions/${editingExhibition.id}`, exhibitionData);
+      return await authenticatedRequest("PUT", `/api/exhibitions/${editingExhibition.id}`, exhibitionData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exhibitions"] });
@@ -115,7 +191,7 @@ export default function AdminExhibitions() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      return await apiRequest("DELETE", `/api/exhibitions/${id}`);
+      return await authenticatedRequest("DELETE", `/api/exhibitions/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exhibitions"] });
@@ -141,15 +217,29 @@ export default function AdminExhibitions() {
     }
   };
 
+  // Helper function to safely convert date to input format
+  const formatDateForInput = (dateValue: any): string => {
+    if (!dateValue) return '';
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return '';
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
   const handleEdit = (exhibition: Exhibition) => {
     setEditingExhibition(exhibition);
     form.reset({
       title: exhibition.title,
       subtitle: exhibition.subtitle || "",
       description: exhibition.description,
-      imageUrl: exhibition.imageUrl || "",
-      startDate: new Date(exhibition.startDate).toISOString().split('T')[0],
-      endDate: new Date(exhibition.endDate).toISOString().split('T')[0],
+      imageUrl: exhibition.imageUrl || undefined,
+      location: exhibition.location || "",
+      venue: exhibition.venue || "",
+      startDate: formatDateForInput(exhibition.startDate),
+      endDate: formatDateForInput(exhibition.endDate),
       openingReception: exhibition.openingReception || "",
       current: exhibition.current,
     });
@@ -227,17 +317,52 @@ export default function AdminExhibitions() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <Label htmlFor="imageUrl">Image URL (Optional)</Label>
-                    <Input
-                      id="imageUrl"
-                      {...form.register("imageUrl")}
-                      placeholder="https://example.com/image.jpg"
+                    <ImageUpload
+                      label="Exhibition Image (Optional)"
+                      value={form.watch("imageUrl") || ""}
+                      onChange={(url) => {
+                        form.setValue("imageUrl", url === "" ? undefined : url);
+                        form.clearErrors("imageUrl");
+                      }}
+                      context="admin"
+                      endpoint={`${API_BASE_URL}/api/admin/exhibitions/media`}
                     />
                     {form.formState.errors.imageUrl && (
                       <p className="text-sm text-red-600 mt-1">
                         {form.formState.errors.imageUrl.message}
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="location">Location (Optional)</Label>
+                    <select
+                      id="location"
+                      {...form.register("location")}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Select Location</option>
+                      <option value="Nairobi">Nairobi</option>
+                      <option value="Mombasa">Mombasa</option>
+                      <option value="Kisumu">Kisumu</option>
+                      <option value="Nakuru">Nakuru</option>
+                      <option value="Eldoret">Eldoret</option>
+                      <option value="Kakamega">Kakamega</option>
+                    </select>
+                    {form.formState.errors.location && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.location.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="venue">Venue (Optional)</Label>
+                    <Input
+                      id="venue"
+                      {...form.register("venue")}
+                      placeholder="Gallery name or venue"
+                    />
                   </div>
 
                   <div>
@@ -318,11 +443,22 @@ export default function AdminExhibitions() {
               <div className="flex items-center justify-center p-8">
                 <div className="text-muted-foreground">Loading exhibitions...</div>
               </div>
+            ) : isError ? (
+              <div className="text-center p-8">
+                <div className="text-red-500 mb-4">Error loading exhibitions</div>
+                <p className="text-muted-foreground mb-4">
+                  {error?.message || "Failed to load exhibitions. Please try again."}
+                </p>
+                <Button onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+              </div>
             ) : exhibitions && exhibitions.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
+                    <TableHead>Location</TableHead>
                     <TableHead>Dates</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -337,6 +473,16 @@ export default function AdminExhibitions() {
                           {exhibition.subtitle && (
                             <div className="text-sm text-muted-foreground">
                               {exhibition.subtitle}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">{exhibition.location || "Not specified"}</div>
+                          {exhibition.venue && (
+                            <div className="text-xs text-muted-foreground">
+                              {exhibition.venue}
                             </div>
                           )}
                         </div>

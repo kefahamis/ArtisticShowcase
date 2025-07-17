@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { insertArtworkSchema, insertArtistSchema, type Artwork, type Artist } from "@shared/schema-old";
+import { insertArtworkSchema, insertArtistSchema, type Artwork, type Artist } from "@shared/schema";
 import { Pencil, Trash2, Plus, Save, X, LogOut, Shield, TrendingUp, Users, Palette, Eye } from "lucide-react";
+import { ImageUpload } from "@/components/image-upload";
 
 interface ArtworkForm {
   title: string;
@@ -286,7 +287,7 @@ export default function Admin() {
             </div>
             <p className="text-gray-600">Manage artists, artworks, and gallery content</p>
           </div>
-          
+
           <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
             <LogOut className="w-4 h-4" />
             Logout
@@ -497,9 +498,12 @@ export default function Admin() {
                         render={({ field }) => (
                           <FormItem className="md:col-span-2">
                             <FormLabel>Image URL</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter image URL" {...field} />
-                            </FormControl>
+                            <ImageUpload
+                              label=""
+                              value={field.value}
+                              onChange={field.onChange}
+                              context="admin"
+                            />
                             <FormMessage />
                           </FormItem>
                         )}

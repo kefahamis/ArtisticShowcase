@@ -23,6 +23,7 @@ import { useLocation } from "wouter";
 import { insertArtworkSchema } from "@shared/schema";
 import ArtistSidebar from "@/components/artist-sidebar";
 import ArtistHeader from "@/components/artist-header";
+import { ImageUpload } from "@/components/image-upload";
 
 type ArtworkForm = z.infer<typeof insertArtworkSchema>;
 
@@ -708,9 +709,14 @@ export default function ArtistDashboard() {
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Image URL</FormLabel>
+                    <FormLabel>Artwork Image</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com/image.jpg" {...field} />
+                      <ImageUpload
+                        label=""
+                        value={field.value}
+                        onChange={field.onChange}
+                        context="artist"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

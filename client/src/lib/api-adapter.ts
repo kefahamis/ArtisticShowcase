@@ -3,7 +3,7 @@ import { strapiAPI } from './strapiClient';
 
 // Configuration to switch between Express and Strapi
 const USE_STRAPI = import.meta.env.VITE_USE_STRAPI === 'true';
-const EXPRESS_API_URL = 'http://localhost:5000/api';
+const EXPRESS_API_URL = import.meta.env.VITE_EXPRESS_API_URL;
 
 // Express API requests (current implementation)
 async function expressRequest(endpoint: string, options: RequestInit = {}) {

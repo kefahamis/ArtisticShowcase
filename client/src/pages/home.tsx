@@ -10,11 +10,13 @@ import ArtworkCard from "@/components/artwork-card";
 import ArtistCard from "@/components/artist-card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Artist, Exhibition, ArtworkWithArtist } from "@shared/schema-old";
+import { useUser } from "@/hooks/useUser";
+import type { Artist, Exhibition, ArtworkWithArtist } from "@shared/schema";
 
 export default function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const { toast } = useToast();
+  const { userEmail } = useUser();
 
   const { data: featuredArtists, isLoading: artistsLoading } = useQuery<Artist[]>({
     queryKey: ["/api/artists/featured"],
@@ -273,7 +275,7 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
               {featuredArtists?.map((artist) => (
-                <ArtistCard key={artist.id} artist={artist} />
+                <ArtistCard key={artist.id} artist={artist} userEmail={userEmail} />
               ))}
             </div>
           )}

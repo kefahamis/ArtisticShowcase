@@ -5,17 +5,22 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Palette, User, Mail, Lock, FileText, Star } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { ImageUpload } from "@/components/image-upload";
 
 const userSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string()
+  confirmPassword: z.string(),
+  acceptTerms: z.boolean().refine((val) => val === true, {
+    message: "You must accept the terms and conditions",
+  })
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -25,9 +30,15 @@ const artistSchema = z.object({
   name: z.string().min(2, "Artist name must be at least 2 characters"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   specialty: z.string().min(2, "Specialty is required"),
-  imageUrl: z.string()
-    .transform(val => val === "" ? undefined : val)
-    .pipe(z.string().url().optional()),
+  imageUrl: z.string().refine((val) => {
+    if (!val || val === "") return true; // Allow empty strings
+    try {
+      new URL(val);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Please enter a valid URL or leave empty"),
 });
 
 type UserForm = z.infer<typeof userSchema>;
@@ -45,6 +56,7 @@ export default function ArtistRegister() {
       email: "",
       password: "",
       confirmPassword: "",
+      acceptTerms: false,
     },
   });
 
@@ -57,6 +69,10 @@ export default function ArtistRegister() {
       imageUrl: "",
     },
   });
+
+  // Watch form values to enable/disable submit button
+  const acceptTerms = userForm.watch("acceptTerms");
+  const isFormDisabled = isLoading || !acceptTerms;
 
   const onSubmit = async () => {
     const userData = userForm.getValues();
@@ -89,23 +105,25 @@ export default function ArtistRegister() {
             email: userData.email,
             password: userData.password,
           },
-          artist: artistData,
+          artist: {
+            name: artistData.name,
+            bio: artistData.bio,
+            specialty: artistData.specialty,
+            imageUrl: artistData.imageUrl || "",
+          },
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store the artist token
-        localStorage.setItem("artist_token", data.token);
-        
         toast({
-          title: "Registration Successful",
-          description: "Welcome to the artist community!",
+          title: "Registration Submitted Successfully",
+          description: data.message || "Your registration is pending admin approval. You will receive an email once your account is approved.",
         });
 
-        // Redirect to artist dashboard
-        setLocation("/artist/dashboard");
+        // Redirect to login page since they need approval first
+        setLocation("/artist/login");
       } else {
         toast({
           title: "Registration Failed",
@@ -223,6 +241,38 @@ export default function ArtistRegister() {
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={userForm.control}
+                      name="acceptTerms"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="text-sm font-normal cursor-pointer">
+                              I agree to the{" "}
+                              <Link href="/terms-of-service">
+                                <span className="text-blue-600 hover:text-blue-800 underline">
+                                  Terms of Service
+                                </span>
+                              </Link>{" "}
+                              and{" "}
+                              <Link href="/privacy-policy">
+                                <span className="text-blue-600 hover:text-blue-800 underline">
+                                  Privacy Policy
+                                </span>
+                              </Link>
+                            </FormLabel>
+                            <FormMessage />
+                          </div>
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </Form>
               </div>
@@ -273,18 +323,31 @@ export default function ArtistRegister() {
                     <FormField
                       control={artistForm.control}
                       name="imageUrl"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Profile Image URL (Optional)
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://example.com/your-photo.jpg" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        const handleImageChange = (url: string) => {
+                          // Keep empty string as is for optional field
+                          field.onChange(url);
+                        };
+                        
+                        return (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <User className="w-4 h-4" />
+                              Profile Image (Optional)
+                            </FormLabel>
+                            <FormControl>
+                              <ImageUpload
+                                label=""
+                                value={field.value || ""}
+                                onChange={handleImageChange}
+                                context="public"
+                                disableMediaLibrary={true}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField
@@ -315,10 +378,10 @@ export default function ArtistRegister() {
             <div className="mt-8 flex flex-col gap-4">
               <Button 
                 onClick={onSubmit}
-                disabled={isLoading}
-                className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                disabled={isFormDisabled}
+                className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? "Creating Account..." : "Register as Artist"}
+                {isLoading ? "Creating Account..." : acceptTerms ? "Register as Artist" : "Accept Terms to Continue"}
               </Button>
 
               <div className="text-center text-gray-600">

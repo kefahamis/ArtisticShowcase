@@ -10,6 +10,10 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
   isAdmin: boolean("is_admin").default(false),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  twoFactorSecret: text("two_factor_secret"),
+  backupCodes: text("backup_codes").array(),
+  phone: text("phone"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -20,7 +24,9 @@ export const artists = pgTable("artists", {
   specialty: text("specialty").notNull(),
   imageUrl: text("image_url"),
   featured: boolean("featured").default(false),
-  userId: integer("user_id").unique(),   
+  userId: integer("user_id").unique(), // Link to user account for artist login
+  approved: boolean("approved").default(false), // Admin approval status
+  approvedAt: timestamp("approved_at"), // When approved by admin
   metaTitle: text("meta_title"),
   metaDescription: text("meta_description"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -49,6 +55,8 @@ export const exhibitions = pgTable("exhibitions", {
   subtitle: text("subtitle"),
   description: text("description").notNull(),
   imageUrl: text("image_url"),
+  location: text("location"),
+  venue: text("venue"),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   openingReception: text("opening_reception"),
@@ -58,10 +66,10 @@ export const exhibitions = pgTable("exhibitions", {
 
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
-  customerName: varchar("customer_name", { length: 255 }),
-  customerEmail: varchar("customer_email", { length: 255 }),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerEmail: varchar("customer_email", { length: 255 }).notNull(),
   customerPhone: varchar("customer_phone", { length: 50 }),
-  customerAddress: json("customer_address"),
+  customerAddress: json("customer_address"), // Made nullable to handle legacy orders
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"), // pending, paid, shipped, delivered
@@ -90,6 +98,8 @@ export const blogPosts = pgTable("blog_posts", {
   content: text("content").notNull(),
   excerpt: text("excerpt").notNull(),
   imageUrl: text("image_url"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -112,6 +122,8 @@ export const mediaFiles = pgTable("media_files", {
   url: text("url").notNull(),
   description: text("description"),
   tags: text("tags").array(),
+  uploadedBy: text("uploaded_by").notNull().default("admin"), // "admin" or "artist"
+  artistId: integer("artist_id").references(() => artists.id), // null for admin uploads
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -146,6 +158,36 @@ export const dashboardMetrics = pgTable("dashboard_metrics", {
   metricType: text("metric_type").notNull(), // count, revenue, percentage
   recordedAt: timestamp("recorded_at").defaultNow(),
 });
+
+export const artistNotificationPreferences = pgTable("artist_notification_preferences", {
+  id: serial("id").primaryKey(),
+  artistId: integer("artist_id").notNull(),
+  orderNotifications: boolean("order_notifications").default(true),
+  exhibitionNotifications: boolean("exhibition_notifications").default(true),
+  marketingEmails: boolean("marketing_emails").default(false),
+  newsLetters: boolean("news_letters").default(false),
+  profileUpdates: boolean("profile_updates").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const favorites = pgTable("favorites", {
+  id: serial("id").primaryKey(),
+  userEmail: text("user_email").notNull(), // Store by email for guest users
+  artworkId: integer("artwork_id").notNull().references(() => artworks.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+
 
 // Relations
 export const artistsRelations = relations(artists, ({ many, one }) => ({
@@ -202,14 +244,25 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+
 export const insertArtistSchema = createInsertSchema(artists).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertArtworkSchema = createInsertSchema(artworks).omit({
+export const insertArtworkSchema = createInsertSchema(artworks, {
+  // Customize fields as needed
+  price: z.coerce.number().positive(), // Ensures price is a positive number
+  featured: z.boolean().default(false),
+  availability: z.enum(["available", "sold", "reserved"]).default("available"),
+}).omit({
   id: true,
   createdAt: true,
+});
+
+export const artworkFormSchema = insertArtworkSchema.extend({
+  price: z.string().transform((val) => parseFloat(val)),
+  artistId: z.string().transform((val) => parseInt(val)),
 });
 
 export const insertExhibitionSchema = createInsertSchema(exhibitions).omit({
@@ -261,6 +314,17 @@ export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).
 export const insertDashboardMetricSchema = createInsertSchema(dashboardMetrics).omit({
   id: true,
   recordedAt: true,
+});
+
+export const insertArtistNotificationPreferencesSchema = createInsertSchema(artistNotificationPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Types
@@ -322,3 +386,14 @@ export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
 
 export type DashboardMetric = typeof dashboardMetrics.$inferSelect;
 export type InsertDashboardMetric = z.infer<typeof insertDashboardMetricSchema>;
+
+export type ArtistNotificationPreferences = typeof artistNotificationPreferences.$inferSelect;
+export type InsertArtistNotificationPreferences = z.infer<typeof insertArtistNotificationPreferencesSchema>;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+
+// Favorites schema
+export const insertFavoriteSchema = createInsertSchema(favorites);
+export type Favorite = typeof favorites.$inferSelect;
+export type InsertFavorite = z.infer<typeof insertFavoriteSchema>;

@@ -34,7 +34,7 @@ export default function ArtistLogin() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/artists/login", {
+      const response = await fetch("/api/artist/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,11 +56,20 @@ export default function ArtistLogin() {
         // Redirect to artist dashboard
         setLocation("/artist/dashboard");
       } else {
-        toast({
-          title: "Login Failed",
-          description: result.message || "Invalid credentials",
-          variant: "destructive",
-        });
+        // Handle specific approval pending error
+        if (result.code === "ACCOUNT_PENDING_APPROVAL") {
+          toast({
+            title: "Account Pending Approval",
+            description: result.message || "Your account is still pending admin approval. You will receive an email once approved.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Login Failed",
+            description: result.message || "Invalid credentials",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       toast({
@@ -163,15 +172,21 @@ export default function ArtistLogin() {
 
             <div className="mt-8 text-center space-y-4">
               <div className="text-gray-600">
+                <Link href="/artist/forgot-password" className="text-blue-600 hover:text-blue-800 font-medium">
+                  Forgot your password?
+                </Link>
+              </div>
+              
+              <div className="text-gray-600">
                 Don't have an artist account?{" "}
                 <Link href="/artist/register" className="text-blue-600 hover:text-blue-800 font-medium">
-                  Sign up
+                  Register here
                 </Link>
               </div>
               
               <div className="text-sm text-gray-500">
                 <Link href="/" className="hover:text-gray-700">
-                  ← Back Home
+                  ← Back to Gallery
                 </Link>
               </div>
             </div>

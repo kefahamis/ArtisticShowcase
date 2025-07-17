@@ -6,13 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import ArtworkCard from "@/components/artwork-card";
+import { useUser } from "@/hooks/useUser";
+import { useToast } from "@/hooks/use-toast";
 import type { ArtworkWithArtist, Artist } from "@shared/schema";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.talantaart.com";
 
 export default function Artworks() {
   const [location] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [artistFilter, setArtistFilter] = useState("all");
+  const { userEmail } = useUser();
+  const { toast } = useToast();
 
   // Get search query from URL parameters
   useEffect(() => {
@@ -24,35 +30,82 @@ export default function Artworks() {
   }, [location]);
 
   // Use search API when there's a search query, otherwise get all artworks
-  const { data: artworks, isLoading: artworksLoading } = useQuery<ArtworkWithArtist[]>({
+  const {
+    data: artworks = [],
+    isLoading: artworksLoading,
+    error: artworksError,
+  } = useQuery<ArtworkWithArtist[]>({
     queryKey: searchQuery ? ["/api/search", searchQuery] : ["/api/artworks"],
     queryFn: async () => {
-      if (searchQuery) {
-        const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
-        if (!response.ok) throw new Error('Search failed');
-        return response.json();
+      const url = searchQuery
+        ? `${API_BASE_URL}/api/search?query=${encodeURIComponent(searchQuery)}`
+        : `${API_BASE_URL}/api/artworks`;
+      const response = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: searchQuery ? "Search failed" : "Failed to fetch artworks" }));
+        throw new Error(error.message || "Request failed");
       }
-      const response = await fetch('/api/artworks');
-      if (!response.ok) throw new Error('Failed to fetch artworks');
       return response.json();
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
   });
 
-  const { data: artists } = useQuery<Artist[]>({
+  // Fetch artists for the artist filter
+  const {
+    data: artists = [],
+    error: artistsError,
+  } = useQuery<Artist[]>({
     queryKey: ["/api/artists"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/artists`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Failed to fetch artists" }));
+        throw new Error(error.message || "Failed to fetch artists");
+      }
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
   });
 
-  const filteredArtworks = artworks?.filter(artwork => {
-    const matchesSearch = searchQuery === "" ||
+  // Error handling with toast
+  if (artworksError || artistsError) {
+    toast({
+      title: "Error",
+      description: (artworksError || artistsError)?.message || "An unexpected error occurred",
+      variant: "destructive",
+    });
+  }
+
+  // Handle image URLs with fallback
+  const getImageUrl = (url?: string | null) => {
+    if (!url) return `${API_BASE_URL}/uploads/placeholder.jpg`;
+    return url.startsWith("http://") || url.startsWith("https://") ? url : `${API_BASE_URL}${url}`;
+  };
+
+  // Map artworks to include processed image URLs
+  const processedArtworks = artworks.map(artwork => ({
+    ...artwork,
+    imageUrl: getImageUrl(artwork.imageUrl),
+  }));
+
+  const filteredArtworks = processedArtworks.filter(artwork => {
+    const matchesSearch =
+      searchQuery === "" ||
       artwork.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       artwork.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       artwork.artist?.name.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesCategory = categoryFilter === "all" || artwork.category === categoryFilter;
     const matchesArtist = artistFilter === "all" || artwork.artistId === parseInt(artistFilter);
-    
+
     return matchesSearch && matchesCategory && matchesArtist;
-  }) || [];
+  });
 
   return (
     <div className="min-h-screen bg-neutral-50 pt-20 font-sans text-gray-800">
@@ -119,7 +172,7 @@ export default function Artworks() {
                 </SelectTrigger>
                 <SelectContent className="bg-white rounded-lg shadow-lg border border-gray-100">
                   <SelectItem value="all">All Artists</SelectItem>
-                  {artists?.map((artist) => (
+                  {artists.map((artist) => (
                     <SelectItem key={artist.id} value={artist.id.toString()}>
                       {artist.name}
                     </SelectItem>
@@ -148,17 +201,21 @@ export default function Artworks() {
         {/* Results Count */}
         <div className="mb-10 text-center">
           <p className="text-gray-600 text-lg font-medium">
-            Showing <span className="font-bold text-indigo-600">{filteredArtworks.length}</span> of <span className="font-bold text-gray-900">{artworks?.length || 0}</span> artworks
+            Showing <span className="font-bold text-indigo-600">{filteredArtworks.length}</span> of{" "}
+            <span className="font-bold text-gray-900">{artworks.length}</span> artworks
           </p>
         </div>
-        
+
         <hr className="mb-12 border-gray-200" />
 
         {/* Artworks Grid */}
         {artworksLoading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
             {[...Array(9)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 p-6">
+              <div
+                key={i}
+                className="animate-pulse bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 p-6"
+              >
                 <div className="bg-gray-200 h-72 mb-6 rounded-xl" />
                 <div className="space-y-3">
                   <div className="bg-gray-200 h-8 rounded-lg w-4/5" />
@@ -196,7 +253,7 @@ export default function Artworks() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {filteredArtworks.map((artwork) => (
-              <ArtworkCard key={artwork.id} artwork={artwork} />
+              <ArtworkCard key={artwork.id} artwork={artwork} userEmail={userEmail} />
             ))}
           </div>
         )}

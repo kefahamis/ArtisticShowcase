@@ -315,3 +315,6 @@
 .dialog-content {
   z-index: 100;
 }
+.custom-dialog {
+  background-color: #fff !important;
+}

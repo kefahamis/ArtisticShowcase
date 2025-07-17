@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ShoppingBag, CreditCard } from "lucide-react";
+import { ArrowLeft, ShoppingBag, AlertCircle, CreditCard, UserCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
@@ -31,12 +31,13 @@ const checkoutFormSchema = z.object({
     errorMap: () => ({ message: "Please select a payment method" }),
   }),
   shippingNotes: z.string().optional(),
+  createAccount: z.boolean().optional(),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
 const countries = [
   "United States",
-  "Canada", 
+  "Canada",
   "United Kingdom",
   "Germany",
   "France",
@@ -107,7 +108,7 @@ export default function Checkout() {
         city: "",
         state: "",
         zipCode: "",
-        country: "United States",
+        country: "Kenya",
       },
       paymentMethod: "paypal",
       shippingNotes: "",
@@ -130,10 +131,10 @@ export default function Checkout() {
       }
 
       // Validate all items have required properties
-      const invalidItems = items.filter(item => 
-        !item.artwork?.id || 
-        !item.artwork?.price || 
-        !item.quantity || 
+      const invalidItems = items.filter(item =>
+        !item.artwork?.id ||
+        !item.artwork?.price ||
+        !item.quantity ||
         item.quantity <= 0
       );
 
@@ -156,9 +157,6 @@ export default function Checkout() {
       };
 
       const accessToken = localStorage.getItem("admin_token");
-      if (!accessToken) {
-        throw new Error("No access token found. Please log in.");
-      }
 
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -171,7 +169,7 @@ export default function Checkout() {
 
       const responseText = await response.text();
       let responseData;
-      
+
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
@@ -185,18 +183,20 @@ export default function Checkout() {
           description: "Please complete payment to finalize your order.",
         });
       } else {
-        const errorMessage = responseData?.message || 
-                           responseData?.error || 
-                           `Server error: ${response.status} ${response.statusText}`;
-        
+        const errorMessage = responseData?.message ||
+          responseData?.error ||
+          `Server error: ${response.status} ${response.statusText}`;
+
         throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Order submission error:", error);
-      
+
       toast({
         title: "Error",
-        description: error.message || "Failed to create order. Please try again.",
+        description: error instanceof Error
+          ? error.message
+          : "Failed to create order. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -238,7 +238,7 @@ export default function Checkout() {
 
       const responseText = await response.text();
       let responseData;
-      
+
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
@@ -246,9 +246,19 @@ export default function Checkout() {
       }
 
       if (response.ok) {
+        // Send order confirmation email
+        try {
+          await fetch(`/api/orders/${orderId}/send-receipt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: form.getValues('customerEmail') })
+          });
+        } catch (emailError) {
+          console.error('Failed to send order confirmation email:', emailError);
+        }
         toast({
           title: "Payment successful!",
-          description: "Your order has been confirmed. You will receive an email shortly.",
+          description: "Your order has been confirmed. You will receive an email confirmation shortly.",
         });
         clearCart();
         setLocation("/artworks");
@@ -257,7 +267,7 @@ export default function Checkout() {
       }
     } catch (error) {
       console.error("Payment update error:", error);
-      
+
       toast({
         title: "Payment Error",
         description: error.message || "Payment processed but order update failed. Please contact support.",
@@ -277,7 +287,22 @@ export default function Checkout() {
         </Link>
 
         <h1 className="text-4xl font-serif font-bold text-gray-900 mb-8">Checkout</h1>
-
+        {/* Guest Checkout Notice */}
+        {!orderId && (
+          <Card className="mb-8 border-green-200 bg-green-50">
+            <CardContent className="p-6">
+              <div className="flex items-start space-x-3">
+                <UserCheck className="w-5 h-5 text-green-600 mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-green-800">Guest Checkout</h3>
+                  <p className="text-sm text-green-700 mt-1">
+                    No account required! Simply fill out your details below and complete your purchase. You'll receive order updates via email.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Payment Notice */}
         {!orderId && (
           <Card className="mb-8 border-blue-200 bg-blue-50">
@@ -399,8 +424,8 @@ export default function Checkout() {
                   </div>
                   <div>
                     <Label htmlFor="country">Country</Label>
-                    <Select 
-                      value={form.watch("address.country")} 
+                    <Select
+                      value={form.watch("address.country")}
                       onValueChange={(value) => form.setValue("address.country", value)}
                     >
                       <SelectTrigger className="mt-1">
@@ -502,7 +527,7 @@ export default function Checkout() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{item.artwork.title}</p>
-                      <p className="text-sm text-gray-500">by {item.artwork.artist.name}</p>
+                      <p className="text-sm text-gray-500">by {item.artwork.artist?.name || 'Unknown Artist'}</p>
                       <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
